@@ -28,9 +28,14 @@ export function useTrades() {
 
   const importTrades = (incoming) => {
     setTrades(prev => {
-      const existingIds = new Set(prev.map(t => t.id));
+      const incomingMap = new Map(incoming.map(t => [t.id, t]));
+      const manual = prev.filter(t => !t.id.startsWith('ibkr-'));
+      const existingIbkr = prev.filter(t => t.id.startsWith('ibkr-'));
+      const existingIds = new Set(existingIbkr.map(t => t.id));
       const fresh = incoming.filter(t => !existingIds.has(t.id));
-      return [...fresh, ...prev].sort((a, b) => new Date(b.date) - new Date(a.date));
+      // Update existing ibkr trades with latest data (fixes P&L etc)
+      const updated = existingIbkr.map(t => incomingMap.has(t.id) ? { ...t, ...incomingMap.get(t.id) } : t);
+      return [...fresh, ...updated, ...manual].sort((a, b) => new Date(b.date) - new Date(a.date));
     });
     return incoming.length;
   };

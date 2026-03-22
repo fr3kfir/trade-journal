@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import TradeModal from './TradeModal';
 
 function pnlColor(v) {
@@ -7,23 +8,84 @@ function pnlColor(v) {
   return 'var(--text-muted)';
 }
 
+function fmt(v, prefix = '$') {
+  if (v == null) return '—';
+  return `${v >= 0 ? '+' : ''}${prefix}${Math.abs(parseFloat(v)).toFixed(2)}`;
+}
+
+// For a closing trade, find related opening legs (same ticker, no P&L, earlier/same date)
+function getLegs(closeTrade, allTrades) {
+  return allTrades.filter(t =>
+    t.id !== closeTrade.id &&
+    t.ticker === closeTrade.ticker &&
+    t.pnl == null &&
+    new Date(t.date) <= new Date(closeTrade.date)
+  );
+}
+
+function ExpandedLegs({ legs }) {
+  if (!legs.length) return (
+    <tr>
+      <td colSpan={10} style={{ padding: '10px 32px', color: 'var(--text-faint)', fontSize: 12, background: 'var(--bg-card)' }}>
+        No opening legs found for this position
+      </td>
+    </tr>
+  );
+  return (
+    <>
+      <tr>
+        <td colSpan={10} style={{ background: 'var(--bg-card)', padding: '6px 32px 2px', fontSize: 10, fontWeight: 700, color: 'var(--text-faint)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+          Opening legs ({legs.length})
+        </td>
+      </tr>
+      {legs.map(leg => (
+        <tr key={leg.id} style={{ background: 'var(--bg-card)' }}>
+          <td style={{ paddingLeft: 32, fontSize: 11, color: 'var(--text-muted)' }}>{leg.date}</td>
+          <td style={{ fontSize: 12, fontWeight: 500 }}>{leg.ticker}</td>
+          <td>
+            <span className={`badge ${leg.direction === 'L' ? 'badge-green' : 'badge-red'}`} style={{ fontSize: 10, padding: '1px 7px' }}>
+              {leg.direction === 'L' ? 'Long' : 'Short'}
+            </span>
+          </td>
+          <td style={{ fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>{leg.entry ? `$${parseFloat(leg.entry).toFixed(2)}` : '—'}</td>
+          <td style={{ fontSize: 12, fontVariantNumeric: 'tabular-nums', color: 'var(--text-muted)' }}>{leg.quantity ?? '—'}</td>
+          <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>{leg.open_close || '—'}</td>
+          <td colSpan={4} style={{ fontSize: 11, color: 'var(--text-faint)' }}>Open position — no realized P&amp;L</td>
+        </tr>
+      ))}
+    </>
+  );
+}
+
 export default function TradesTable({ trades, onUpdate, onDelete }) {
   const [editing, setEditing] = useState(null);
   const [filter, setFilter] = useState('');
   const [dirFilter, setDirFilter] = useState('ALL');
   const [confirm, setConfirm] = useState(null);
+  const [expanded, setExpanded] = useState(new Set());
 
-  const filtered = trades.filter(t => {
+  // Only show trades that have realized P&L (closing trades)
+  const closedTrades = trades.filter(t => t.pnl != null);
+
+  const filtered = closedTrades.filter(t => {
     const matchText = !filter || t.ticker?.toLowerCase().includes(filter.toLowerCase()) || t.setup?.toLowerCase().includes(filter.toLowerCase());
     const matchDir = dirFilter === 'ALL' || t.direction === dirFilter;
     return matchText && matchDir;
   });
 
+  const toggleExpand = (id) => {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
   return (
     <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
       {/* Header */}
-      <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', background: 'var(--bg-panel)' }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Trade Log</span>
+      <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Closed Trades</span>
         <input
           className="input"
           style={{ width: 180 }}
@@ -37,63 +99,72 @@ export default function TradesTable({ trades, onUpdate, onDelete }) {
           <option value="S">Short</option>
         </select>
         <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-faint)', fontWeight: 500 }}>
-          {filtered.length} {filtered.length === 1 ? 'trade' : 'trades'}
+          {filtered.length} trades
         </span>
       </div>
 
       {/* Table */}
-      <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 460 }}>
+      <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 520 }}>
         <table className="trade-table">
           <thead>
             <tr>
+              <th style={{ width: 28 }}></th>
               <th>Date</th>
               <th>Ticker</th>
               <th>Dir</th>
-              <th>Entry</th>
-              <th>Exit</th>
-              <th>Stop</th>
+              <th>Price</th>
               <th>Shares</th>
               <th>P&amp;L</th>
-              <th>R</th>
+              <th>Commission</th>
               <th>Setup</th>
               <th style={{ textAlign: 'right' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 && (
-              <tr><td colSpan={11} style={{ textAlign: 'center', color: 'var(--text-faint)', padding: 40 }}>No trades yet</td></tr>
+              <tr><td colSpan={10} style={{ textAlign: 'center', color: 'var(--text-faint)', padding: 40 }}>No closed trades yet</td></tr>
             )}
-            {filtered.map(t => (
-              <tr key={t.id}>
-                <td style={{ color: 'var(--text-muted)', fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>{t.date}</td>
-                <td style={{ fontWeight: 600, letterSpacing: '0.02em' }}>{t.ticker}</td>
-                <td>
-                  <span className={`badge ${t.direction === 'L' ? 'badge-green' : 'badge-red'}`}>
-                    {t.direction === 'L' ? 'Long' : 'Short'}
-                  </span>
-                </td>
-                <td style={{ fontVariantNumeric: 'tabular-nums' }}>{t.entry ? `$${parseFloat(t.entry).toFixed(2)}` : '—'}</td>
-                <td style={{ fontVariantNumeric: 'tabular-nums' }}>{t.exit  ? `$${parseFloat(t.exit).toFixed(2)}`  : '—'}</td>
-                <td style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--text-muted)' }}>{t.stop ? `$${parseFloat(t.stop).toFixed(2)}` : '—'}</td>
-                <td style={{ fontVariantNumeric: 'tabular-nums' }}>{t.quantity ?? '—'}</td>
-                <td style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: pnlColor(t.pnl) }}>
-                  {t.pnl != null ? `${t.pnl >= 0 ? '+' : ''}$${parseFloat(t.pnl).toFixed(2)}` : '—'}
-                </td>
-                <td style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--text-muted)' }}>
-                  {t.r_value != null ? `${t.r_value}R` : '—'}
-                </td>
-                <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{t.setup || '—'}</td>
-                <td style={{ textAlign: 'right' }}>
-                  <button className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 11, marginRight: 4 }} onClick={() => setEditing(t)}>Edit</button>
-                  <button className="btn btn-danger" style={{ padding: '4px 10px', fontSize: 11 }} onClick={() => setConfirm(t.id)}>Del</button>
-                </td>
-              </tr>
-            ))}
+            {filtered.map(t => {
+              const isOpen = expanded.has(t.id);
+              const legs = getLegs(t, trades);
+              return (
+                <>
+                  <tr key={t.id} style={{ cursor: legs.length ? 'pointer' : 'default' }}
+                    onClick={() => legs.length && toggleExpand(t.id)}>
+                    <td style={{ textAlign: 'center', color: 'var(--text-faint)' }}>
+                      {legs.length > 0
+                        ? (isOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />)
+                        : null}
+                    </td>
+                    <td style={{ color: 'var(--text-muted)', fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>{t.date}</td>
+                    <td style={{ fontWeight: 600, letterSpacing: '0.02em' }}>{t.ticker}</td>
+                    <td>
+                      <span className={`badge ${t.direction === 'L' ? 'badge-green' : 'badge-red'}`}>
+                        {t.direction === 'L' ? 'Long' : 'Short'}
+                      </span>
+                    </td>
+                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>{t.entry ? `$${parseFloat(t.entry).toFixed(2)}` : '—'}</td>
+                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>{t.quantity ?? '—'}</td>
+                    <td style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: pnlColor(t.pnl) }}>
+                      {fmt(t.pnl)}
+                    </td>
+                    <td style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--red)', fontSize: 12 }}>
+                      {t.commission ? `-$${Math.abs(parseFloat(t.commission)).toFixed(2)}` : '—'}
+                    </td>
+                    <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{t.setup || '—'}</td>
+                    <td style={{ textAlign: 'right' }} onClick={e => e.stopPropagation()}>
+                      <button className="btn btn-ghost" style={{ padding: '3px 9px', fontSize: 11, marginRight: 4 }} onClick={() => setEditing(t)}>Edit</button>
+                      <button className="btn btn-danger" style={{ padding: '3px 9px', fontSize: 11 }} onClick={() => setConfirm(t.id)}>Del</button>
+                    </td>
+                  </tr>
+                  {isOpen && <ExpandedLegs legs={legs} />}
+                </>
+              );
+            })}
           </tbody>
         </table>
       </div>
 
-      {/* Edit modal */}
       {editing && (
         <TradeModal
           trade={editing}
@@ -102,7 +173,6 @@ export default function TradesTable({ trades, onUpdate, onDelete }) {
         />
       )}
 
-      {/* Confirm delete */}
       {confirm && (
         <div className="modal-overlay">
           <div className="modal" style={{ maxWidth: 360, textAlign: 'center' }}>
