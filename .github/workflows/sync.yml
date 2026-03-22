@@ -108,7 +108,15 @@ jobs:
                       'notes':      'IBKR auto-sync',
                   })
 
-          print(f"SymbolSummary elements: {len(root.findall('.//SymbolSummary'))}")
+          sym_els = root.findall('.//SymbolSummary')
+          print(f"SymbolSummary elements: {len(sym_els)}")
+          if sym_els:
+              s0 = sym_els[0]
+              print(f"SymbolSummary[0] attrs: {dict(s0.attrib)}")
+              children = list(s0)
+              print(f"SymbolSummary[0] children tags: {[c.tag for c in children[:5]]}")
+              if children:
+                  print(f"First child attrs: {dict(children[0].attrib)}")
 
           print(f"Parsed {len(trades)} stock trades")
           if not trades:
