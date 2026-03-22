@@ -72,12 +72,6 @@ jobs:
           root = ET.fromstring(body)
 
           all_trades = root.findall('.//Trade')
-          # Debug: print first closing trade to verify fifoPnlRealized
-          for t in all_trades:
-              if t.get('openCloseIndicator') == 'C':
-                  print(f"Sample CLOSE trade: {dict(t.attrib)}")
-                  break
-
           trades = []
           for t in all_trades:
               sym   = t.get('symbol', '')
