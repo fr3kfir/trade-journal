@@ -33,17 +33,24 @@ exports.handler = async (event) => {
       if (raw) existing = JSON.parse(raw);
     } catch {}
 
-    // Merge — skip duplicates by id
-    const existingIds = new Set(existing.map(t => t.id));
-    const fresh = incoming.filter(t => !existingIds.has(t.id));
-    const merged = [...fresh, ...existing].sort((a, b) => new Date(b.date) - new Date(a.date));
+    // Merge: add new ibkr trades, update existing ibkr trades (to fix P&L etc), keep manual trades intact
+    const incomingMap = new Map(incoming.map(t => [t.id, t]));
+    const manual = existing.filter(t => !t.id.startsWith('ibkr-'));
+    const existingIbkr = existing.filter(t => t.id.startsWith('ibkr-'));
+    const existingIbkrIds = new Set(existingIbkr.map(t => t.id));
+
+    const fresh = incoming.filter(t => !existingIbkrIds.has(t.id));
+    // Update existing ibkr trades with latest data from IBKR (fixes P&L, commission, etc)
+    const updated = existingIbkr.map(t => incomingMap.has(t.id) ? { ...t, ...incomingMap.get(t.id) } : t);
+
+    const merged = [...fresh, ...updated, ...manual].sort((a, b) => new Date(b.date) - new Date(a.date));
 
     await store.set('trades', JSON.stringify(merged));
 
     return {
       statusCode: 200,
       headers: CORS,
-      body: JSON.stringify({ ok: true, added: fresh.length, total: merged.length }),
+      body: JSON.stringify({ ok: true, added: fresh.length, updated: updated.filter(t => incomingMap.has(t.id)).length, total: merged.length }),
     };
   } catch (err) {
     return { statusCode: 500, headers: CORS, body: JSON.stringify({ error: err.message }) };
