@@ -67,52 +67,48 @@ jobs:
 
           print("Got data, length:", len(body))
 
-          # Step 3 — parse XML (IBKR Flex is always XML regardless of format setting)
+          # Step 3 — parse XML
+          # IBKR Flex structure: SymbolSummary has symbol/assetCategory attrs,
+          # Trade children have dateTime/quantity/tradePrice etc.
           root = ET.fromstring(body)
-          trade_elements = root.findall('.//Trade')
-          print(f"Found {len(trade_elements)} trade elements")
-
-          # Debug: show unique assetCategory values and sample attributes
-          cats = set(t.get('assetCategory', 'MISSING') for t in trade_elements)
-          print(f"Asset categories: {cats}")
-          if trade_elements:
-              sample = trade_elements[0]
-              print(f"Sample trade ALL attrs: {dict(sample.attrib)}")
-              # Also check parent element
-              all_tags = set(el.tag for el in root.iter())
-              print(f"All XML tags: {all_tags}")
 
           trades = []
-          for t in trade_elements:
-              cat = t.get('assetCategory', 'STK')
-              if cat not in ('STK', 'STK', 'Stocks', 'Common Stocks', ''):
+          for sym_el in root.findall('.//SymbolSummary'):
+              cat = sym_el.get('assetCategory', '')
+              sym = sym_el.get('symbol', '') or sym_el.get('underlyingSymbol', '')
+              if not sym:
                   continue
-              sym   = t.get('symbol', '')
-              dt    = (t.get('dateTime') or '').replace(';', ' ').split(' ')[0]
-              qty   = float(t.get('quantity') or 0)
-              price = float(t.get('tradePrice') or 0)
-              pnl   = float(t.get('netCash') or t.get('fifoPnlRealized') or 0)
-              comm  = float(t.get('commission') or 0)
-              bs    = t.get('buySell', '')
-              oc    = t.get('openCloseIndicator', '')
-
-              if not sym or not dt:
+              if cat and cat not in ('STK', 'Stocks', 'Common Stocks', ''):
                   continue
 
-              trades.append({
-                  'id':         f"ibkr-{sym}-{dt}-{qty}-{price}".replace(' ', ''),
-                  'ticker':     sym.upper(),
-                  'date':       dt,
-                  'direction':  'L' if (qty > 0 or bs == 'BUY') else 'S',
-                  'quantity':   abs(qty),
-                  'entry':      price or None,
-                  'exit':       None,
-                  'stop':       None,
-                  'pnl':        pnl or None,
-                  'commission': comm or None,
-                  'open_close': oc,
-                  'notes':      'IBKR auto-sync',
-              })
+              for t in sym_el.findall('Trade'):
+                  dt    = (t.get('dateTime') or '').replace(';', ' ').split(' ')[0]
+                  qty   = float(t.get('quantity') or 0)
+                  price = float(t.get('tradePrice') or 0)
+                  pnl   = float(t.get('netCash') or t.get('fifoPnlRealized') or 0)
+                  comm  = float(t.get('ibCommission') or t.get('commission') or 0)
+                  bs    = t.get('buySell', '')
+                  oc    = t.get('openCloseIndicator', '')
+
+                  if not dt:
+                      continue
+
+                  trades.append({
+                      'id':         f"ibkr-{sym}-{dt}-{qty}-{price}".replace(' ', '').replace(';', ''),
+                      'ticker':     sym.upper(),
+                      'date':       dt,
+                      'direction':  'L' if (qty > 0 or bs == 'BUY') else 'S',
+                      'quantity':   abs(qty),
+                      'entry':      price or None,
+                      'exit':       None,
+                      'stop':       None,
+                      'pnl':        pnl or None,
+                      'commission': comm or None,
+                      'open_close': oc,
+                      'notes':      'IBKR auto-sync',
+                  })
+
+          print(f"SymbolSummary elements: {len(root.findall('.//SymbolSummary'))}")
 
           print(f"Parsed {len(trades)} stock trades")
           if not trades:
