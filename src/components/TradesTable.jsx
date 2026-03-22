@@ -22,12 +22,12 @@ export default function TradesTable({ trades, onUpdate, onDelete }) {
   return (
     <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
       {/* Header */}
-      <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 13, fontWeight: 600, marginRight: 8 }}>Trade Log</span>
+      <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', background: 'var(--bg-panel)' }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Trade Log</span>
         <input
           className="input"
           style={{ width: 180 }}
-          placeholder="Search ticker / setup..."
+          placeholder="Search ticker or setup..."
           value={filter}
           onChange={e => setFilter(e.target.value)}
         />
@@ -36,7 +36,9 @@ export default function TradesTable({ trades, onUpdate, onDelete }) {
           <option value="L">Long</option>
           <option value="S">Short</option>
         </select>
-        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-faint)' }}>{filtered.length} trades</span>
+        <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-faint)', fontWeight: 500 }}>
+          {filtered.length} {filtered.length === 1 ? 'trade' : 'trades'}
+        </span>
       </div>
 
       {/* Table */}
@@ -51,7 +53,7 @@ export default function TradesTable({ trades, onUpdate, onDelete }) {
               <th>Exit</th>
               <th>Stop</th>
               <th>Shares</th>
-              <th>P&L</th>
+              <th>P&amp;L</th>
               <th>R</th>
               <th>Setup</th>
               <th style={{ textAlign: 'right' }}>Actions</th>
@@ -59,25 +61,25 @@ export default function TradesTable({ trades, onUpdate, onDelete }) {
           </thead>
           <tbody>
             {filtered.length === 0 && (
-              <tr><td colSpan={11} style={{ textAlign: 'center', color: 'var(--text-faint)', padding: 32 }}>No trades yet</td></tr>
+              <tr><td colSpan={11} style={{ textAlign: 'center', color: 'var(--text-faint)', padding: 40 }}>No trades yet</td></tr>
             )}
             {filtered.map(t => (
               <tr key={t.id}>
-                <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{t.date}</td>
-                <td style={{ fontWeight: 600, fontFamily: 'monospace' }}>{t.ticker}</td>
+                <td style={{ color: 'var(--text-muted)', fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>{t.date}</td>
+                <td style={{ fontWeight: 600, letterSpacing: '0.02em' }}>{t.ticker}</td>
                 <td>
                   <span className={`badge ${t.direction === 'L' ? 'badge-green' : 'badge-red'}`}>
                     {t.direction === 'L' ? 'Long' : 'Short'}
                   </span>
                 </td>
-                <td style={{ fontFamily: 'monospace' }}>{t.entry ? `$${t.entry}` : '—'}</td>
-                <td style={{ fontFamily: 'monospace' }}>{t.exit  ? `$${t.exit}`  : '—'}</td>
-                <td style={{ fontFamily: 'monospace', color: 'var(--text-muted)' }}>{t.stop ? `$${t.stop}` : '—'}</td>
-                <td style={{ fontFamily: 'monospace' }}>{t.quantity ?? '—'}</td>
-                <td style={{ fontFamily: 'monospace', fontWeight: 700, color: pnlColor(t.pnl) }}>
+                <td style={{ fontVariantNumeric: 'tabular-nums' }}>{t.entry ? `$${parseFloat(t.entry).toFixed(2)}` : '—'}</td>
+                <td style={{ fontVariantNumeric: 'tabular-nums' }}>{t.exit  ? `$${parseFloat(t.exit).toFixed(2)}`  : '—'}</td>
+                <td style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--text-muted)' }}>{t.stop ? `$${parseFloat(t.stop).toFixed(2)}` : '—'}</td>
+                <td style={{ fontVariantNumeric: 'tabular-nums' }}>{t.quantity ?? '—'}</td>
+                <td style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: pnlColor(t.pnl) }}>
                   {t.pnl != null ? `${t.pnl >= 0 ? '+' : ''}$${parseFloat(t.pnl).toFixed(2)}` : '—'}
                 </td>
-                <td style={{ fontFamily: 'monospace', color: 'var(--text-muted)' }}>
+                <td style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--text-muted)' }}>
                   {t.r_value != null ? `${t.r_value}R` : '—'}
                 </td>
                 <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{t.setup || '—'}</td>
@@ -105,7 +107,7 @@ export default function TradesTable({ trades, onUpdate, onDelete }) {
         <div className="modal-overlay">
           <div className="modal" style={{ maxWidth: 360, textAlign: 'center' }}>
             <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>Delete trade?</div>
-            <div style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 20 }}>This cannot be undone.</div>
+            <div style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 24 }}>This cannot be undone.</div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
               <button className="btn btn-ghost" onClick={() => setConfirm(null)}>Cancel</button>
               <button className="btn btn-danger" onClick={() => { onDelete(confirm); setConfirm(null); }}>Delete</button>

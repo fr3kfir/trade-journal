@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 120" fill="none">
+  <defs>
+    <linearGradient id="candleGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#00C896"/>
+      <stop offset="100%" stop-color="#007A5C"/>
+    </linearGradient>
+    <linearGradient id="arrowGrad" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0%" stop-color="#00C896"/>
+      <stop offset="100%" stop-color="#00E8A8"/>
+    </linearGradient>
+    <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#00A87A"/>
+      <stop offset="100%" stop-color="#00E8A8"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <linearGradient id="textJournal" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#1E6B9F"/>
+      <stop offset="100%" stop-color="#2A8A9F"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Baseline diagonal line -->
+  <line x1="18" y1="100" x2="148" y2="40" stroke="url(#lineGrad)" stroke-width="1.8" stroke-linecap="round"/>
+
+  <!-- Candle 1 -->
+  <line x1="28" y1="92" x2="28" y2="108" stroke="url(#candleGrad)" stroke-width="1.5"/>
+  <rect x="23" y="92" width="10" height="14" rx="1.5" fill="url(#candleGrad)"/>
+  <line x1="28" y1="78" x2="28" y2="84" stroke="url(#candleGrad)" stroke-width="1.5"/>
+
+  <!-- Candle 2 -->
+  <line x1="48" y1="82" x2="48" y2="96" stroke="url(#candleGrad)" stroke-width="1.5"/>
+  <rect x="43" y="82" width="10" height="13" rx="1.5" fill="url(#candleGrad)"/>
+  <line x1="48" y1="70" x2="48" y2="74" stroke="url(#candleGrad)" stroke-width="1.5"/>
+
+  <!-- Candle 3 (small doji-like) -->
+  <line x1="68" y1="74" x2="68" y2="84" stroke="url(#candleGrad)" stroke-width="1.5"/>
+  <rect x="63" y="74" width="10" height="8" rx="1.5" fill="url(#candleGrad)"/>
+  <line x1="68" y1="65" x2="68" y2="67" stroke="url(#candleGrad)" stroke-width="1.5"/>
+
+  <!-- Candle 4 -->
+  <line x1="88" y1="62" x2="88" y2="76" stroke="url(#candleGrad)" stroke-width="1.5"/>
+  <rect x="83" y="62" width="10" height="14" rx="1.5" fill="url(#candleGrad)"/>
+  <line x1="88" y1="50" x2="88" y2="54" stroke="url(#candleGrad)" stroke-width="1.5"/>
+
+  <!-- Candle 5 (tallest) -->
+  <line x1="108" y1="50" x2="108" y2="66" stroke="url(#candleGrad)" stroke-width="1.5" filter="url(#glow)"/>
+  <rect x="103" y="50" width="10" height="18" rx="1.5" fill="url(#candleGrad)" filter="url(#glow)"/>
+  <line x1="108" y1="38" x2="108" y2="42" stroke="url(#candleGrad)" stroke-width="1.5" filter="url(#glow)"/>
+
+  <!-- Trending line through candles -->
+  <polyline points="18,98 48,85 88,65 128,42" stroke="url(#arrowGrad)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none" filter="url(#glow)"/>
+
+  <!-- Arrow head -->
+  <line x1="110" y1="54" x2="142" y2="22" stroke="url(#arrowGrad)" stroke-width="2.2" stroke-linecap="round" filter="url(#glow)"/>
+  <polygon points="142,22 128,24 136,34" fill="url(#arrowGrad)" filter="url(#glow)"/>
+
+  <!-- APEX text -->
+  <text x="172" y="72" font-family="Inter, system-ui, sans-serif" font-size="44" font-weight="800" fill="#1B2E4B" letter-spacing="-1">APEX</text>
+
+  <!-- JOURNAL text -->
+  <text x="174" y="97" font-family="Inter, system-ui, sans-serif" font-size="22" font-weight="600" fill="url(#textJournal)" letter-spacing="5">JOURNAL</text>
+</svg>
