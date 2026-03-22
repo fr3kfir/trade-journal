@@ -71,10 +71,12 @@ jobs:
           # Trade elements have symbol, dateTime, quantity, tradePrice, etc. as attributes
           root = ET.fromstring(body)
 
-          # Debug: print all attributes of first 3 Trade elements
           all_trades = root.findall('.//Trade')
-          for i, t in enumerate(all_trades[:3]):
-              print(f"Trade[{i}] attrs: {dict(t.attrib)}")
+          # Debug: print first closing trade to verify fifoPnlRealized
+          for t in all_trades:
+              if t.get('openCloseIndicator') == 'C':
+                  print(f"Sample CLOSE trade: {dict(t.attrib)}")
+                  break
 
           trades = []
           for t in all_trades:
@@ -87,9 +89,12 @@ jobs:
               comm  = float(t.get('ibCommission') or t.get('commission') or 0)
               bs    = t.get('buySell', '')
               oc    = t.get('openCloseIndicator', '')
-              # fifoPnlRealized is the actual realized P&L — only present on closing trades
-              raw_pnl = t.get('fifoPnlRealized', '')
-              pnl = float(raw_pnl) if raw_pnl not in ('', None) else None
+              # Only assign realized P&L for closing trades; opening trades have no realized P&L
+              pnl = None
+              if oc == 'C':
+                  raw_pnl = t.get('fifoPnlRealized', '')
+                  if raw_pnl not in ('', None):
+                      pnl = float(raw_pnl)
 
               if not dt:
                   continue
