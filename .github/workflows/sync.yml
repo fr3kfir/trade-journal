@@ -71,8 +71,13 @@ jobs:
           # Trade elements have symbol, dateTime, quantity, tradePrice, etc. as attributes
           root = ET.fromstring(body)
 
+          # Debug: print all attributes of first 3 Trade elements
+          all_trades = root.findall('.//Trade')
+          for i, t in enumerate(all_trades[:3]):
+              print(f"Trade[{i}] attrs: {dict(t.attrib)}")
+
           trades = []
-          for t in root.findall('.//Trade'):
+          for t in all_trades:
               sym   = t.get('symbol', '')
               if not sym:
                   continue
