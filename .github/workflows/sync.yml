@@ -77,7 +77,10 @@ jobs:
           print(f"Asset categories: {cats}")
           if trade_elements:
               sample = trade_elements[0]
-              print(f"Sample trade attrs: {dict(list(sample.attrib.items())[:10])}")
+              print(f"Sample trade ALL attrs: {dict(sample.attrib)}")
+              # Also check parent element
+              all_tags = set(el.tag for el in root.iter())
+              print(f"All XML tags: {all_tags}")
 
           trades = []
           for t in trade_elements:
