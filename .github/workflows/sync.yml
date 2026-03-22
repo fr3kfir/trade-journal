@@ -68,47 +68,39 @@ jobs:
           print("Got data, length:", len(body))
 
           # Step 3 — parse XML
-          # IBKR Flex structure: SymbolSummary has symbol/assetCategory attrs,
-          # Trade children have dateTime/quantity/tradePrice etc.
+          # Trade elements have symbol, dateTime, quantity, tradePrice, etc. as attributes
           root = ET.fromstring(body)
 
           trades = []
-          for sym_el in root.findall('.//SymbolSummary'):
-              cat = sym_el.get('assetCategory', '')
-              sym = sym_el.get('symbol', '') or sym_el.get('underlyingSymbol', '')
+          for t in root.findall('.//Trade'):
+              sym   = t.get('symbol', '')
               if not sym:
                   continue
-              if cat and cat not in ('STK', 'Stocks', 'Common Stocks', ''):
+              dt    = (t.get('dateTime') or '').replace(';', ' ').split(' ')[0]
+              qty   = float(t.get('quantity') or 0)
+              price = float(t.get('tradePrice') or 0)
+              pnl   = float(t.get('netCash') or t.get('fifoPnlRealized') or 0)
+              comm  = float(t.get('ibCommission') or t.get('commission') or 0)
+              bs    = t.get('buySell', '')
+              oc    = t.get('openCloseIndicator', '')
+
+              if not dt:
                   continue
 
-              for t in sym_el.findall('Trade'):
-                  dt    = (t.get('dateTime') or '').replace(';', ' ').split(' ')[0]
-                  qty   = float(t.get('quantity') or 0)
-                  price = float(t.get('tradePrice') or 0)
-                  pnl   = float(t.get('netCash') or t.get('fifoPnlRealized') or 0)
-                  comm  = float(t.get('ibCommission') or t.get('commission') or 0)
-                  bs    = t.get('buySell', '')
-                  oc    = t.get('openCloseIndicator', '')
-
-                  if not dt:
-                      continue
-
-                  trades.append({
-                      'id':         f"ibkr-{sym}-{dt}-{qty}-{price}".replace(' ', '').replace(';', ''),
-                      'ticker':     sym.upper(),
-                      'date':       dt,
-                      'direction':  'L' if (qty > 0 or bs == 'BUY') else 'S',
-                      'quantity':   abs(qty),
-                      'entry':      price or None,
-                      'exit':       None,
-                      'stop':       None,
-                      'pnl':        pnl or None,
-                      'commission': comm or None,
-                      'open_close': oc,
-                      'notes':      'IBKR auto-sync',
-                  })
-
-          print("XML preview:", body[:3000])
+              trades.append({
+                  'id':         f"ibkr-{sym}-{dt}-{qty}-{price}".replace(' ', '').replace(';', ''),
+                  'ticker':     sym.upper(),
+                  'date':       dt,
+                  'direction':  'L' if (qty > 0 or bs == 'BUY') else 'S',
+                  'quantity':   abs(qty),
+                  'entry':      price or None,
+                  'exit':       None,
+                  'stop':       None,
+                  'pnl':        pnl or None,
+                  'commission': comm or None,
+                  'open_close': oc,
+                  'notes':      'IBKR auto-sync',
+              })
 
           print(f"Parsed {len(trades)} stock trades")
           if not trades:
