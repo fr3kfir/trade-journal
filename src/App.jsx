@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTrades } from './hooks/useTrades';
 import StatCard from './components/StatCard';
 import PnLChart from './components/PnLChart';
@@ -24,12 +24,32 @@ export default function App() {
   const [showAdd, setShowAdd] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [importMsg, setImportMsg] = useState('');
+  const [syncing, setSyncing] = useState(false);
   const s = calcSummary(trades);
+
+  // Auto-pull from cloud on load
+  useEffect(() => {
+    fetch('/api/trades')
+      .then(r => r.json())
+      .then(d => { if (d.trades?.length) importTrades(d.trades); })
+      .catch(() => {});
+  }, []);
 
   const handleImport = (newTrades) => {
     const count = importTrades(newTrades);
     setImportMsg(`✓ Imported ${count} new trade${count !== 1 ? 's' : ''}`);
     setTimeout(() => setImportMsg(''), 4000);
+  };
+
+  const handleManualSync = async () => {
+    setSyncing(true);
+    try {
+      const r = await fetch('/api/trades');
+      const d = await r.json();
+      const count = importTrades(d.trades || []);
+      setImportMsg(`✓ ${count} new trades synced`);
+    } catch { setImportMsg('Sync failed'); }
+    finally { setSyncing(false); setTimeout(() => setImportMsg(''), 4000); }
   };
 
   return (
@@ -55,7 +75,10 @@ export default function App() {
             {importMsg && (
               <span style={{ fontSize: 12, color: 'var(--green)' }}>{importMsg}</span>
             )}
-            <button className="btn btn-ghost" onClick={() => setShowImport(true)} style={{ fontSize: 12 }}>⬆ Import IBKR CSV</button>
+            <button className="btn btn-ghost" onClick={handleManualSync} disabled={syncing} style={{ fontSize: 12 }}>
+              {syncing ? '↻ Syncing…' : '↻ Sync'}
+            </button>
+            <button className="btn btn-ghost" onClick={() => setShowImport(true)} style={{ fontSize: 12 }}>⬆ Import CSV</button>
             <button className="btn btn-primary" onClick={() => setShowAdd(true)} style={{ fontSize: 12 }}>+ Add Trade</button>
           </div>
         </div>
