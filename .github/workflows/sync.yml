@@ -72,10 +72,17 @@ jobs:
           trade_elements = root.findall('.//Trade')
           print(f"Found {len(trade_elements)} trade elements")
 
+          # Debug: show unique assetCategory values and sample attributes
+          cats = set(t.get('assetCategory', 'MISSING') for t in trade_elements)
+          print(f"Asset categories: {cats}")
+          if trade_elements:
+              sample = trade_elements[0]
+              print(f"Sample trade attrs: {dict(list(sample.attrib.items())[:10])}")
+
           trades = []
           for t in trade_elements:
               cat = t.get('assetCategory', 'STK')
-              if cat not in ('STK', ''):
+              if cat not in ('STK', 'STK', 'Stocks', 'Common Stocks', ''):
                   continue
               sym   = t.get('symbol', '')
               dt    = (t.get('dateTime') or '').replace(';', ' ').split(' ')[0]
