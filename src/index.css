@@ -1,0 +1,156 @@
+@import "tailwindcss";
+
+:root {
+  --bg:           #0a0a0f;
+  --bg-panel:     #111118;
+  --bg-card:      #16161f;
+  --bg-hover:     #1c1c28;
+  --border:       #1e1e2e;
+  --border-light: #2a2a3e;
+  --text:         #e2e2f0;
+  --text-muted:   #8888aa;
+  --text-faint:   #44445a;
+  --green:        #22c55e;
+  --red:          #ef4444;
+  --blue:         #3b82f6;
+  --purple:       #a855f7;
+  --yellow:       #eab308;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 2px; }
+
+.panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 18px;
+}
+
+.trade-table { width: 100%; border-collapse: collapse; }
+.trade-table th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.trade-table td {
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text);
+}
+.trade-table tr:last-child td { border-bottom: none; }
+.trade-table tbody tr:hover { background: var(--bg-hover); cursor: pointer; }
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 20px;
+  letter-spacing: 0.04em;
+}
+.badge-green { background: #22c55e18; color: #22c55e; border: 1px solid #22c55e33; }
+.badge-red   { background: #ef444418; color: #ef4444; border: 1px solid #ef444433; }
+.badge-blue  { background: #3b82f618; color: #3b82f6; border: 1px solid #3b82f633; }
+.badge-gray  { background: #88888818; color: #888; border: 1px solid #88888833; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: none;
+  outline: none;
+}
+.btn-primary { background: var(--blue); color: #fff; }
+.btn-primary:hover { background: #2563eb; }
+.btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border-light); }
+.btn-ghost:hover { background: var(--bg-hover); color: var(--text); }
+.btn-danger { background: #ef444420; color: #ef4444; border: 1px solid #ef444430; }
+.btn-danger:hover { background: #ef444430; }
+
+.input {
+  background: var(--bg);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+  width: 100%;
+  transition: border-color 0.15s;
+}
+.input:focus { border-color: var(--blue); }
+.input::placeholder { color: var(--text-faint); }
+select.input { cursor: pointer; }
+select.input option { background: var(--bg-card); }
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  backdrop-filter: blur(4px);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.modal {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-light);
+  border-radius: 14px;
+  padding: 24px;
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.nav-tab {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: all 0.15s;
+  background: transparent;
+  border: none;
+}
+.nav-tab:hover { color: var(--text); background: var(--bg-hover); }
+.nav-tab.active { color: var(--text); background: var(--bg-card); }
+
+.positive { color: var(--green); }
+.negative { color: var(--red); }
+.neutral  { color: var(--text-muted); }
