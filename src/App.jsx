@@ -53,10 +53,6 @@ export default function App() {
         }
       } catch {}
     }
-    fetch('/api/trades')
-      .then(r => r.json())
-      .then(d => { if (d.trades?.length) importTrades(d.trades); })
-      .catch(() => {});
   }, []);
 
   const handleExportBackup = () => {

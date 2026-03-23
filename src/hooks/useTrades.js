@@ -1,16 +1,41 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 const KEY = 'apex_trades_v1';
+
+function pushToServer(trades) {
+  fetch('/api/sync', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ trades }),
+  }).catch(() => {});
+}
 
 export function useTrades() {
   const [trades, setTrades] = useState(() => {
     try { return JSON.parse(localStorage.getItem(KEY)) || []; }
     catch { return []; }
   });
+  const initialized = useRef(false);
 
+  // Save to localStorage on every change
   useEffect(() => {
     localStorage.setItem(KEY, JSON.stringify(trades));
+    // Push to server after initial load from server
+    if (initialized.current) pushToServer(trades);
   }, [trades]);
+
+  // Load from server on startup — server is source of truth
+  useEffect(() => {
+    fetch('/api/trades')
+      .then(r => r.json())
+      .then(d => {
+        if (d.trades?.length) {
+          setTrades(d.trades);
+        }
+        initialized.current = true;
+      })
+      .catch(() => { initialized.current = true; });
+  }, []);
 
   const addTrade = (t) => {
     const trade = { ...t, id: t.id || `${t.ticker}-${t.date}-${Date.now()}` };
@@ -28,14 +53,9 @@ export function useTrades() {
 
   const importTrades = (incoming) => {
     setTrades(prev => {
-      const incomingMap = new Map(incoming.map(t => [t.id, t]));
-      const manual = prev.filter(t => !t.id.startsWith('ibkr-'));
-      const existingIbkr = prev.filter(t => t.id.startsWith('ibkr-'));
-      const existingIds = new Set(existingIbkr.map(t => t.id));
+      const existingIds = new Set(prev.map(t => t.id));
       const fresh = incoming.filter(t => !existingIds.has(t.id));
-      // Update existing ibkr trades with latest data (fixes P&L etc)
-      const updated = existingIbkr.map(t => incomingMap.has(t.id) ? { ...t, ...incomingMap.get(t.id) } : t);
-      return [...fresh, ...updated, ...manual].sort((a, b) => new Date(b.date) - new Date(a.date));
+      return [...fresh, ...prev].sort((a, b) => new Date(b.date) - new Date(a.date));
     });
     return incoming.length;
   };
