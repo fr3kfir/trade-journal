@@ -72,22 +72,31 @@ export default async function handler(req, res) {
 
     const all = parseXmlTrades(body);
 
-    // Only closed trades (C = close, C;O = close+open same day)
+    // Only real stock closing executions with actual realized P&L
     const list = all.filter(t =>
-      (t.assetCategory === 'STK' || !t.assetCategory) &&
-      t.openCloseIndicator && t.openCloseIndicator.includes('C')
+      t.assetCategory === 'STK' &&
+      t.openCloseIndicator && t.openCloseIndicator.includes('C') &&
+      t.fifoPnlRealized && parseFloat(t.fifoPnlRealized) !== 0
     );
 
+    const formatDate = (d) => {
+      if (!d) return '';
+      const s = d.split(';')[0].split(' ')[0].replace(/-/g, '');
+      if (s.length === 8) return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;
+      return d.split(';')[0].split(' ')[0];
+    };
+
     const trades = list.map(t => ({
-      id:         `ibkr-${t.symbol}-${t.tradeID || t.dateTime}-${t.quantity}`.replace(/[\s;]/g, ''),
+      id:         `ibkr-${t.tradeID || (t.symbol + t.dateTime + t.quantity)}`.replace(/[\s;,]/g, ''),
       ticker:     t.symbol || '',
-      date:       (t.tradeDate || t.dateTime || '').split(';')[0].split(' ')[0],
-      direction:  (t.buySell || 'BUY') === 'BUY' ? 'L' : 'S',
+      date:       formatDate(t.tradeDate || t.dateTime),
+      // Closing a long = SELL, closing a short = BUY
+      direction:  t.buySell === 'SELL' ? 'L' : 'S',
       quantity:   Math.abs(parseFloat(t.quantity) || 0),
       entry:      parseFloat(t.tradePrice) || null,
       exit:       null,
       stop:       null,
-      pnl:        parseFloat(t.fifoPnlRealized) || null,
+      pnl:        parseFloat(t.fifoPnlRealized),
       commission: Math.abs(parseFloat(t.ibCommission) || 0),
       open_close: t.openCloseIndicator || '',
       notes:      'IBKR import',
