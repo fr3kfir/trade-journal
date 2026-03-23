@@ -70,19 +70,25 @@ export default async function handler(req, res) {
 
     if (!body) throw new Error('IBKR report not ready after 20s — try again in a moment');
 
-    const list = parseXmlTrades(body).filter(t => t.assetCategory === 'STK' || !t.assetCategory);
+    const all = parseXmlTrades(body);
+
+    // Only closed trades (C = close, C;O = close+open same day)
+    const list = all.filter(t =>
+      (t.assetCategory === 'STK' || !t.assetCategory) &&
+      t.openCloseIndicator && t.openCloseIndicator.includes('C')
+    );
 
     const trades = list.map(t => ({
-      id:         `ibkr-${t.symbol}-${t.dateTime}-${t.quantity}`.replace(/\s/g, ''),
+      id:         `ibkr-${t.symbol}-${t.tradeID || t.dateTime}-${t.quantity}`.replace(/[\s;]/g, ''),
       ticker:     t.symbol || '',
-      date:       (t.dateTime || '').split(';')[0].split(' ')[0],
+      date:       (t.tradeDate || t.dateTime || '').split(';')[0].split(' ')[0],
       direction:  (t.buySell || 'BUY') === 'BUY' ? 'L' : 'S',
       quantity:   Math.abs(parseFloat(t.quantity) || 0),
       entry:      parseFloat(t.tradePrice) || null,
       exit:       null,
       stop:       null,
-      pnl:        parseFloat(t.fifoPnlRealized) || parseFloat(t.netCash) || null,
-      commission: Math.abs(parseFloat(t.ibCommission) || parseFloat(t.commission) || 0),
+      pnl:        parseFloat(t.fifoPnlRealized) || null,
+      commission: Math.abs(parseFloat(t.ibCommission) || 0),
       open_close: t.openCloseIndicator || '',
       notes:      'IBKR import',
     }));
