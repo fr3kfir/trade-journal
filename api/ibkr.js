@@ -3,9 +3,10 @@ const QUERY_ID = process.env.IBKR_QUERY_ID;
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+import https from 'https';
+
 function httpsGet(url) {
   return new Promise((resolve, reject) => {
-    const https = require('https');
     https.get(url, res => {
       let data = '';
       res.on('data', chunk => data += chunk);
