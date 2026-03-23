@@ -72,11 +72,15 @@ export default async function handler(req, res) {
 
     const all = parseXmlTrades(body);
 
-    // Only real stock closing executions with actual realized P&L
+    // Debug: return first trade's raw fields to understand XML structure
+    if (all.length > 0) {
+      const sample = all[0];
+      return res.status(200).json({ debug: true, sampleFields: Object.keys(sample), sampleTrade: sample, total: all.length });
+    }
+
     const list = all.filter(t =>
       t.assetCategory === 'STK' &&
-      t.openCloseIndicator && t.openCloseIndicator.includes('C') &&
-      t.fifoPnlRealized && parseFloat(t.fifoPnlRealized) !== 0
+      t.openCloseIndicator && t.openCloseIndicator.includes('C')
     );
 
     const formatDate = (d) => {
