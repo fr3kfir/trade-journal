@@ -19,10 +19,10 @@ function httpsGet(url) {
   });
 }
 
-// Parse XML attributes into object
+// Parse XML attributes into object — handles both <Tag .../> and <Tag ...>
 function parseXmlTrades(xml) {
   const trades = [];
-  const tradeRegex = /<Trade\s([^>]+)\/>/g;
+  const tradeRegex = /<Trade\s([^>]+?)\/?>(?:<\/Trade>)?/g;
   let match;
   while ((match = tradeRegex.exec(xml)) !== null) {
     const attrs = {};
@@ -31,7 +31,7 @@ function parseXmlTrades(xml) {
     while ((a = attrRegex.exec(match[1])) !== null) {
       attrs[a[1]] = a[2];
     }
-    trades.push(attrs);
+    if (Object.keys(attrs).length > 0) trades.push(attrs);
   }
   return trades;
 }
