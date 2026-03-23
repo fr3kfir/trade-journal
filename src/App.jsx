@@ -132,7 +132,7 @@ export default function App() {
                 {syncing ? 'Syncing...' : 'Sync IBKR'}
               </button>
               <button className="btn btn-ghost hide-mobile" onClick={handleExportBackup} style={{ fontSize: 12 }}>Export</button>
-              <label className="btn btn-ghost hide-mobile" style={{ fontSize: 12, cursor: 'pointer' }}>
+              <label className="btn btn-ghost" style={{ fontSize: 12, cursor: 'pointer' }}>
                 Restore <input type="file" accept=".json" onChange={handleImportBackup} style={{ display: 'none' }} />
               </label>
               <button className="btn btn-ghost hide-mobile" onClick={() => setShowImport(true)} style={{ fontSize: 12 }}>Import CSV</button>
