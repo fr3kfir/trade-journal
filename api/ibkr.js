@@ -72,10 +72,12 @@ export default async function handler(req, res) {
     if (!body) throw new Error('IBKR report not ready after 20s — try again in a moment');
 
     const all = parseXmlTrades(body);
-    const tradeTagCount = (body.match(/<Trade/g) || []).length;
-    return res.status(200).json({ debug: true, tradeTagCount, totalParsed: all.length, xmlLength: body.length, xmlPreview: body.slice(0, 800) });
 
-    const list = all.filter(t => t.assetCategory === 'STK');
+    // Filter closed trades with realized P&L (assetCategory not in this query's fields)
+    const list = all.filter(t =>
+      t.openCloseIndicator && t.openCloseIndicator.includes('C') &&
+      t.fifoPnlRealized && parseFloat(t.fifoPnlRealized) !== 0
+    );
 
     const formatDate = (d) => {
       if (!d) return '';
