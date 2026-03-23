@@ -26,11 +26,16 @@ export function useTrades() {
 
   // Load from server on startup — server is source of truth
   useEffect(() => {
+    const local = JSON.parse(localStorage.getItem(KEY) || '[]');
     fetch('/api/trades')
       .then(r => r.json())
       .then(d => {
         if (d.trades?.length) {
+          // Server has data — use it
           setTrades(d.trades);
+        } else if (local.length) {
+          // Server empty but local has data — push local to server
+          pushToServer(local);
         }
         initialized.current = true;
       })
