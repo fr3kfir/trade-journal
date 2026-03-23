@@ -47,6 +47,33 @@ export default function App() {
       .catch(() => {});
   }, []);
 
+  const handleExportBackup = () => {
+    const data = JSON.stringify(trades, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'apex_trades_backup.json'; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportBackup = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const parsed = JSON.parse(ev.target.result);
+        if (Array.isArray(parsed)) {
+          importTrades(parsed);
+          setImportMsg(`${parsed.length} trades restored from backup`);
+          setTimeout(() => setImportMsg(''), 4000);
+        }
+      } catch { setImportMsg('Invalid backup file'); setTimeout(() => setImportMsg(''), 4000); }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
   const handleImport = (newTrades) => {
     const count = importTrades(newTrades);
     setImportMsg(`${count} new trades imported`);
@@ -92,6 +119,10 @@ export default function App() {
               <button className="btn btn-ghost hide-mobile" onClick={handleManualSync} disabled={syncing} style={{ fontSize: 12 }}>
                 {syncing ? 'Syncing...' : 'Sync IBKR'}
               </button>
+              <button className="btn btn-ghost hide-mobile" onClick={handleExportBackup} style={{ fontSize: 12 }}>Export</button>
+              <label className="btn btn-ghost hide-mobile" style={{ fontSize: 12, cursor: 'pointer' }}>
+                Restore <input type="file" accept=".json" onChange={handleImportBackup} style={{ display: 'none' }} />
+              </label>
               <button className="btn btn-ghost hide-mobile" onClick={() => setShowImport(true)} style={{ fontSize: 12 }}>Import CSV</button>
               <button className="btn btn-primary" onClick={() => setShowAdd(true)} style={{ fontSize: 12 }}>+ Add</button>
             </div>
