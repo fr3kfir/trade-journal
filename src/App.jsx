@@ -91,12 +91,13 @@ export default function App() {
   const handleManualSync = async () => {
     setSyncing(true);
     try {
-      const r = await fetch('/api/trades');
+      const r = await fetch('/api/ibkr');
       const d = await r.json();
-      importTrades(d.trades || []);
-      setImportMsg('Trades synced');
-    } catch { setImportMsg('Sync failed'); }
-    finally { setSyncing(false); setTimeout(() => setImportMsg(''), 4000); }
+      if (d.error) throw new Error(d.error);
+      const count = importTrades(d.trades || []);
+      setImportMsg(`${d.count} trades synced from IBKR`);
+    } catch (e) { setImportMsg(`Sync failed: ${e.message}`); }
+    finally { setSyncing(false); setTimeout(() => setImportMsg(''), 5000); }
   };
 
   const PAGE_TITLES = {
