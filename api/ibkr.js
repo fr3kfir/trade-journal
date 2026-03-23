@@ -72,8 +72,9 @@ export default async function handler(req, res) {
     if (!body) throw new Error('IBKR report not ready after 20s — try again in a moment');
 
     const all = parseXmlTrades(body);
+    const tradeTagCount = (body.match(/<Trade/g) || []).length;
+    return res.status(200).json({ debug: true, tradeTagCount, totalParsed: all.length, xmlLength: body.length, xmlPreview: body.slice(0, 800) });
 
-    // Keep all STK trades that have a realized P&L value
     const list = all.filter(t => t.assetCategory === 'STK');
 
     const formatDate = (d) => {
