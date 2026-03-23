@@ -39,6 +39,7 @@ function parseXmlTrades(xml) {
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Cache-Control', 'no-store');
 
   if (!TOKEN || !QUERY_ID) {
     return res.status(500).json({ error: 'IBKR credentials not configured' });
@@ -71,12 +72,6 @@ export default async function handler(req, res) {
     if (!body) throw new Error('IBKR report not ready after 20s — try again in a moment');
 
     const all = parseXmlTrades(body);
-
-    // Debug: return first trade's raw fields to understand XML structure
-    if (all.length > 0) {
-      const sample = all[0];
-      return res.status(200).json({ debug: true, sampleFields: Object.keys(sample), sampleTrade: sample, total: all.length });
-    }
 
     const list = all.filter(t =>
       t.assetCategory === 'STK' &&

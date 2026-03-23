@@ -15,6 +15,7 @@ export default async function handler(req, res) {
   try {
     const { trades } = req.body || {};
     if (!Array.isArray(trades)) return res.status(400).json({ error: 'Invalid payload' });
+    if (trades.length === 0) return res.status(200).json({ ok: true, count: 0, skipped: true });
     await redis.set('trades', trades);
     return res.status(200).json({ ok: true, count: trades.length });
   } catch (err) {
