@@ -68,15 +68,15 @@ export default function PnLChart({ trades }) {
       range
     ).sort((a, b) => new Date(a.date) - new Date(b.date));
 
+    const totalCost = filtered.reduce((sum, t) => {
+      return sum + Math.abs((parseFloat(t.entry) || 0) * (parseFloat(t.quantity) || 0));
+    }, 0);
+
     let cum = 0;
-    let cumPct = 0;
     return filtered.map(t => {
       const pnl = parseFloat(t.pnl) || 0;
       cum += pnl;
-      // Per-trade % return = pnl / cost_basis of that execution
-      const costBasis = Math.abs((parseFloat(t.entry) || 0) * (parseFloat(t.quantity) || 0));
-      const tradePct = costBasis > 0 ? (pnl / costBasis) * 100 : 0;
-      cumPct += tradePct;
+      const cumPct = totalCost > 0 ? (cum / totalCost) * 100 : 0;
       return {
         date: format(new Date(t.date), 'MMM d'),
         pnl,
