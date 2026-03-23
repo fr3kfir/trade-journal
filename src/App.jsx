@@ -31,7 +31,7 @@ function calcSummary(trades) {
 }
 
 export default function App() {
-  const { trades, addTrade, updateTrade, deleteTrade, importTrades } = useTrades();
+  const { trades, addTrade, updateTrade, deleteTrade, importTrades, clearIbkrTrades } = useTrades();
   const [section, setSection] = useState('dashboard');
   const [showAdd, setShowAdd] = useState(false);
   const [showImport, setShowImport] = useState(false);
@@ -128,6 +128,7 @@ export default function App() {
               <button className="btn btn-ghost hide-mobile" onClick={handleManualSync} disabled={syncing} style={{ fontSize: 12 }}>
                 {syncing ? 'Syncing...' : 'Sync IBKR'}
               </button>
+              <button className="btn btn-ghost hide-mobile" onClick={() => { if(confirm('Delete all IBKR trades?')) { clearIbkrTrades(); setImportMsg('IBKR trades cleared'); setTimeout(() => setImportMsg(''), 3000); }}} style={{ fontSize: 12, color: 'var(--red)' }}>Clear IBKR</button>
               <button className="btn btn-ghost hide-mobile" onClick={handleExportBackup} style={{ fontSize: 12 }}>Export</button>
               <label className="btn btn-ghost" style={{ fontSize: 12, cursor: 'pointer' }}>
                 Restore <input type="file" accept=".json" onChange={handleImportBackup} style={{ display: 'none' }} />

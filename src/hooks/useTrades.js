@@ -56,6 +56,9 @@ export function useTrades() {
   const deleteTrade = (id) =>
     setTrades(prev => prev.filter(t => t.id !== id));
 
+  const clearIbkrTrades = () =>
+    setTrades(prev => prev.filter(t => !t.id.startsWith('ibkr-')));
+
   const importTrades = (incoming) => {
     setTrades(prev => {
       const existingIds = new Set(prev.map(t => t.id));
@@ -65,5 +68,5 @@ export function useTrades() {
     return incoming.length;
   };
 
-  return { trades, addTrade, updateTrade, deleteTrade, importTrades };
+  return { trades, addTrade, updateTrade, deleteTrade, importTrades, clearIbkrTrades };
 }
