@@ -22,7 +22,7 @@ function httpsGet(url) {
 // Parse XML attributes into object — handles both <Tag .../> and <Tag ...>
 function parseXmlTrades(xml) {
   const trades = [];
-  const tradeRegex = /<Trade\s([^>]+?)\/?>(?:<\/Trade>)?/g;
+  const tradeRegex = /<Trade\s([^>]+?)\/>/g;
   let match;
   while ((match = tradeRegex.exec(xml)) !== null) {
     const attrs = {};
