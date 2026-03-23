@@ -73,10 +73,8 @@ export default async function handler(req, res) {
 
     const all = parseXmlTrades(body);
 
-    const list = all.filter(t =>
-      t.assetCategory === 'STK' &&
-      t.openCloseIndicator && t.openCloseIndicator.includes('C')
-    );
+    // Keep all STK trades that have a realized P&L value
+    const list = all.filter(t => t.assetCategory === 'STK');
 
     const formatDate = (d) => {
       if (!d) return '';
