@@ -41,6 +41,18 @@ export default function App() {
   const s = calcSummary(trades);
 
   useEffect(() => {
+    // Catch migration data from URL hash
+    if (window.location.hash && window.location.hash.length > 1) {
+      try {
+        const data = JSON.parse(decodeURIComponent(window.location.hash.slice(1)));
+        if (Array.isArray(data) && data.length) {
+          importTrades(data);
+          setImportMsg(`${data.length} trades restored!`);
+          setTimeout(() => setImportMsg(''), 5000);
+          window.history.replaceState(null, '', window.location.pathname);
+        }
+      } catch {}
+    }
     fetch('/api/trades')
       .then(r => r.json())
       .then(d => { if (d.trades?.length) importTrades(d.trades); })
