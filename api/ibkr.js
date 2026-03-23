@@ -1,9 +1,9 @@
+import https from 'https';
+
 const TOKEN    = process.env.IBKR_TOKEN;
 const QUERY_ID = process.env.IBKR_QUERY_ID;
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-import https from 'https';
 
 function httpsGet(url) {
   return new Promise((resolve, reject) => {
@@ -17,6 +17,23 @@ function httpsGet(url) {
       res.on('end', () => resolve({ status: res.statusCode, body: data }));
     }).on('error', reject);
   });
+}
+
+// Parse XML attributes into object
+function parseXmlTrades(xml) {
+  const trades = [];
+  const tradeRegex = /<Trade\s([^>]+)\/>/g;
+  let match;
+  while ((match = tradeRegex.exec(xml)) !== null) {
+    const attrs = {};
+    const attrRegex = /(\w+)="([^"]*)"/g;
+    let a;
+    while ((a = attrRegex.exec(match[1])) !== null) {
+      attrs[a[1]] = a[2];
+    }
+    trades.push(attrs);
+  }
+  return trades;
 }
 
 export default async function handler(req, res) {
@@ -53,32 +70,22 @@ export default async function handler(req, res) {
 
     if (!body) throw new Error('IBKR report not ready after 20s — try again in a moment');
 
-    let data;
-    try { data = JSON.parse(body); }
-    catch { throw new Error('Could not parse IBKR response: ' + body.slice(0, 200)); }
+    const list = parseXmlTrades(body).filter(t => t.assetCategory === 'STK' || !t.assetCategory);
 
-    const stmt = data?.FlexQueryResponse?.FlexStatements?.FlexStatement
-                 || data?.FlexStatements?.FlexStatement
-                 || {};
-    const raw  = stmt?.Trades?.Trade || stmt?.Trade || [];
-    const list = Array.isArray(raw) ? raw : (raw ? [raw] : []);
-
-    const trades = list
-      .filter(t => t.assetCategory === 'STK' || !t.assetCategory)
-      .map(t => ({
-        id:         `ibkr-${t.symbol}-${t.dateTime}-${t.quantity}`.replace(/\s/g, ''),
-        ticker:     t.symbol || '',
-        date:       (t.dateTime || '').split(';')[0].split(' ')[0],
-        direction:  (t.buySell || 'BUY') === 'BUY' ? 'L' : 'S',
-        quantity:   Math.abs(parseFloat(t.quantity) || 0),
-        entry:      parseFloat(t.tradePrice) || null,
-        exit:       null,
-        stop:       null,
-        pnl:        parseFloat(t.netCash) || null,
-        commission: parseFloat(t.commission) || null,
-        open_close: t.openCloseIndicator || '',
-        notes:      'IBKR import',
-      }));
+    const trades = list.map(t => ({
+      id:         `ibkr-${t.symbol}-${t.dateTime}-${t.quantity}`.replace(/\s/g, ''),
+      ticker:     t.symbol || '',
+      date:       (t.dateTime || '').split(';')[0].split(' ')[0],
+      direction:  (t.buySell || 'BUY') === 'BUY' ? 'L' : 'S',
+      quantity:   Math.abs(parseFloat(t.quantity) || 0),
+      entry:      parseFloat(t.tradePrice) || null,
+      exit:       null,
+      stop:       null,
+      pnl:        parseFloat(t.fifoPnlRealized) || parseFloat(t.netCash) || null,
+      commission: Math.abs(parseFloat(t.ibCommission) || parseFloat(t.commission) || 0),
+      open_close: t.openCloseIndicator || '',
+      notes:      'IBKR import',
+    }));
 
     return res.status(200).json({ trades, count: trades.length });
 
