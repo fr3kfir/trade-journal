@@ -8,6 +8,9 @@
 [functions.ibkr]
   timeout = 26
 
+[functions.tax-report]
+  timeout = 60
+
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"

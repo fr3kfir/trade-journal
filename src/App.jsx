@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Menu } from 'lucide-react';
 import { useTrades } from './hooks/useTrades';
 import Sidebar from './components/Sidebar';
 import StatCard from './components/StatCard';
@@ -13,6 +14,7 @@ import DailySurvey from './components/DailySurvey';
 import Scenarios from './components/Scenarios';
 import Learning from './components/Learning';
 import Routine from './components/Routine';
+import TaxReport from './components/TaxReport';
 
 function calcSummary(trades) {
   const closed = trades.filter(t => t.pnl != null);
@@ -35,6 +37,7 @@ export default function App() {
   const [showImport, setShowImport] = useState(false);
   const [importMsg, setImportMsg] = useState('');
   const [syncing, setSyncing] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const s = calcSummary(trades);
 
   useEffect(() => {
@@ -65,27 +68,32 @@ export default function App() {
     dashboard: 'Dashboard', trades: 'Trade Log', portfolio: 'Portfolio',
     stats: 'Statistics', journal: 'Journal', survey: 'Daily Check-in',
     scenarios: 'If / Then', learning: 'Learning', routine: 'Daily Routine',
+    tax: 'Tax Report',
   };
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }}>
       {/* Sidebar */}
-      <Sidebar active={section} onSelect={setSection} />
+      <Sidebar active={section} onSelect={setSection} mobileOpen={sidebarOpen} onMobileClose={() => setSidebarOpen(false)} />
 
       {/* Main area */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
 
         {/* Top bar */}
         <header style={{ background: 'var(--bg-panel)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, zIndex: 40 }}>
-          <div style={{ padding: '0 28px', height: 56, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ padding: '0 16px', height: 56, display: 'flex', alignItems: 'center', gap: 10 }}>
+            {/* Hamburger — mobile only */}
+            <button className="hamburger-btn" onClick={() => setSidebarOpen(true)}>
+              <Menu size={20} />
+            </button>
             <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>{PAGE_TITLES[section]}</span>
-            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-              {importMsg && <span style={{ fontSize: 12, color: 'var(--green)', fontWeight: 500 }}>{importMsg}</span>}
-              <button className="btn btn-ghost" onClick={handleManualSync} disabled={syncing} style={{ fontSize: 12 }}>
+            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+              {importMsg && <span style={{ fontSize: 12, color: 'var(--green)', fontWeight: 500 }} className="hide-mobile">{importMsg}</span>}
+              <button className="btn btn-ghost hide-mobile" onClick={handleManualSync} disabled={syncing} style={{ fontSize: 12 }}>
                 {syncing ? 'Syncing...' : 'Sync IBKR'}
               </button>
-              <button className="btn btn-ghost" onClick={() => setShowImport(true)} style={{ fontSize: 12 }}>Import CSV</button>
-              <button className="btn btn-primary" onClick={() => setShowAdd(true)} style={{ fontSize: 12 }}>+ Add Trade</button>
+              <button className="btn btn-ghost hide-mobile" onClick={() => setShowImport(true)} style={{ fontSize: 12 }}>Import CSV</button>
+              <button className="btn btn-primary" onClick={() => setShowAdd(true)} style={{ fontSize: 12 }}>+ Add</button>
             </div>
           </div>
         </header>
@@ -95,7 +103,7 @@ export default function App() {
 
           {section === 'dashboard' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
+              <div className="stat-card-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
                 <StatCard label="Total P&L" value={`${s.total >= 0 ? '+' : ''}$${Math.abs(s.total).toFixed(2)}`} color={s.total >= 0 ? 'var(--green)' : 'var(--red)'} sub={`${s.count} closed trades`} />
                 <StatCard label="Win Rate"  value={`${s.winRate}%`} color={parseFloat(s.winRate) >= 50 ? 'var(--green)' : 'var(--red)'} sub={`${s.wins}W / ${s.losses}L`} />
                 <StatCard label="Avg Win"   value={`+$${s.avgWin.toFixed(2)}`} color="var(--green)" sub="Per winning trade" />
@@ -104,11 +112,13 @@ export default function App() {
                 <StatCard label="Closed"    value={s.count} color="var(--text)" sub="Total trades" />
               </div>
               <PnLChart trades={trades} />
-              <TradesTable trades={trades.slice(0, 50)} onUpdate={updateTrade} onDelete={deleteTrade} />
+              <div className="table-scroll">
+                <TradesTable trades={trades.slice(0, 50)} onUpdate={updateTrade} onDelete={deleteTrade} />
+              </div>
             </div>
           )}
 
-          {section === 'trades'    && <TradesTable trades={trades} onUpdate={updateTrade} onDelete={deleteTrade} />}
+          {section === 'trades'    && <div className="table-scroll"><TradesTable trades={trades} onUpdate={updateTrade} onDelete={deleteTrade} /></div>}
           {section === 'portfolio' && <Portfolio />}
           {section === 'stats'     && <Stats trades={trades} />}
           {section === 'journal'   && <JournalSection />}
@@ -116,6 +126,7 @@ export default function App() {
           {section === 'scenarios' && <Scenarios />}
           {section === 'learning'  && <Learning />}
           {section === 'routine'   && <Routine />}
+          {section === 'tax'       && <TaxReport />}
 
         </main>
       </div>
