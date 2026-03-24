@@ -115,7 +115,7 @@ export default function TradesTable({ trades, onUpdate, onDelete }) {
               <span className={`badge ${t.direction === 'L' ? 'badge-green' : 'badge-red'}`} style={{ fontSize: 10 }}>
                 {t.direction === 'L' ? 'Long' : 'Short'}
               </span>
-              <span style={{ fontSize: 16, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: pnlColor(t.pnl), minWidth: 72, textAlign: 'right' }}>
+              <span className="amount" style={{ fontSize: 16, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: pnlColor(t.pnl), minWidth: 72, textAlign: 'right' }}>
                 {fmt(t.pnl)}
               </span>
             </div>
@@ -176,10 +176,10 @@ export default function TradesTable({ trades, onUpdate, onDelete }) {
                     <td style={{ fontVariantNumeric: 'tabular-nums' }}>{t.entry ? `$${parseFloat(t.entry).toFixed(2)}` : '—'}</td>
                     <td style={{ fontVariantNumeric: 'tabular-nums' }}>{t.quantity ?? '—'}</td>
                     <td style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: pnlColor(t.pnl) }}>
-                      {fmt(t.pnl)}
+                      <span className="amount">{fmt(t.pnl)}</span>
                     </td>
                     <td style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--red)', fontSize: 12 }}>
-                      {t.commission ? `-$${Math.abs(parseFloat(t.commission)).toFixed(2)}` : '—'}
+                      <span className="amount">{t.commission ? `-$${Math.abs(parseFloat(t.commission)).toFixed(2)}` : '—'}</span>
                     </td>
                     <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{t.setup || '—'}</td>
                     <td style={{ textAlign: 'right' }} onClick={e => e.stopPropagation()}>

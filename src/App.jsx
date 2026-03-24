@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Menu, LayoutDashboard, TrendingUp, BarChart2, BookOpen, MoreHorizontal } from 'lucide-react';
+import { Menu, LayoutDashboard, TrendingUp, BarChart2, BookOpen, MoreHorizontal, Eye, EyeOff } from 'lucide-react';
 import { useTrades } from './hooks/useTrades';
 import Sidebar from './components/Sidebar';
 import StatCard from './components/StatCard';
@@ -38,6 +38,7 @@ export default function App() {
   const [importMsg, setImportMsg] = useState('');
   const [syncing, setSyncing] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [hideAmounts, setHideAmounts] = useState(false);
   const s = calcSummary(trades);
 
   useEffect(() => {
@@ -116,7 +117,7 @@ export default function App() {
   ];
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }} className={hideAmounts ? 'hide-amounts' : ''}>
       {/* Sidebar */}
       <Sidebar active={section} onSelect={setSection} mobileOpen={sidebarOpen} onMobileClose={() => setSidebarOpen(false)} />
 
@@ -142,6 +143,14 @@ export default function App() {
                 Restore <input type="file" accept=".json" onChange={handleImportBackup} style={{ display: 'none' }} />
               </label>
               <button className="btn btn-ghost hide-mobile" onClick={() => setShowImport(true)} style={{ fontSize: 12 }}>Import CSV</button>
+              <button
+                className="btn btn-ghost"
+                onClick={() => setHideAmounts(h => !h)}
+                title={hideAmounts ? 'Show amounts' : 'Hide amounts'}
+                style={{ fontSize: 12, padding: '7px 10px', color: hideAmounts ? 'var(--navy)' : 'var(--text-muted)' }}
+              >
+                {hideAmounts ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
               <button className="btn btn-primary" onClick={() => setShowAdd(true)} style={{ fontSize: 12 }}>+ Add</button>
             </div>
           </div>

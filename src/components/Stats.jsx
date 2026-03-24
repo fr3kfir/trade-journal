@@ -102,8 +102,8 @@ function StatTile({ label, value, color, sub }) {
   return (
     <div className="stat-card">
       <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>{label}</div>
-      <div style={{ fontSize: 20, fontWeight: 700, color: color || 'var(--text)', letterSpacing: '-0.3px' }}>{value}</div>
-      {sub && <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 4 }}>{sub}</div>}
+      <div className="amount" style={{ fontSize: 20, fontWeight: 700, color: color || 'var(--text)', letterSpacing: '-0.3px' }}>{value}</div>
+      {sub && <div className="amount" style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 4 }}>{sub}</div>}
     </div>
   );
 }
