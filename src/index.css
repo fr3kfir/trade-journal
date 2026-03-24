@@ -167,3 +167,219 @@ select.input option { background: var(--bg-panel); color: var(--text); }
 .positive { color: var(--green); }
 .negative { color: var(--red); }
 .neutral  { color: var(--text-muted); }
+
+/* ── Sidebar ── */
+.sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  overflow-y: auto;
+  transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
+  z-index: 50;
+}
+
+.hamburger-btn {
+  display: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  color: var(--text-muted);
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.hamburger-btn:hover { background: var(--bg-card); }
+
+/* ── Responsive: mobile ── */
+@media (max-width: 768px) {
+  /* Sidebar becomes fixed drawer */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 260px;
+    transform: translateX(-100%);
+    box-shadow: 4px 0 24px rgba(15,23,42,0.12);
+  }
+  .sidebar.sidebar-open {
+    transform: translateX(0);
+  }
+  .sidebar-close-btn {
+    display: flex !important;
+  }
+  .mobile-backdrop {
+    display: block !important;
+  }
+
+  /* Hamburger shows on mobile */
+  .hamburger-btn {
+    display: flex;
+  }
+
+  /* Hide secondary header buttons on mobile */
+  .hide-mobile {
+    display: none !important;
+  }
+
+  /* Main area takes full width */
+  .main-area {
+    margin-left: 0 !important;
+  }
+
+  /* Reduce padding */
+  main {
+    padding: 16px 14px !important;
+  }
+
+  /* Stat cards: 2 columns on mobile */
+  .stat-card-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Charts: reduce height */
+  .recharts-responsive-container {
+    min-height: 160px;
+  }
+
+  /* Stats: 2-col grid on mobile */
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Two-col chart rows: stack on mobile */
+  .two-col-charts {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Modal: full screen on mobile */
+  .modal {
+    padding: 20px 16px;
+    border-radius: 12px;
+    max-height: 95vh;
+  }
+  .modal-overlay {
+    padding: 12px;
+    align-items: flex-end;
+  }
+
+  /* Table: horizontal scroll */
+  .table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Reduce font sizes slightly */
+  .stat-card {
+    padding: 14px 16px;
+  }
+  .panel {
+    padding: 14px 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .stat-card-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+/* ── Bottom Navigation Bar (mobile only) ── */
+.bottom-nav {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 62px;
+    background: var(--bg-panel);
+    border-top: 1px solid var(--border);
+    z-index: 60;
+    padding: 0 2px;
+    align-items: stretch;
+    box-shadow: 0 -2px 12px rgba(15,23,42,0.07);
+  }
+
+  .bottom-nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    padding: 6px 2px;
+    font-family: inherit;
+    color: var(--text-faint);
+    font-size: 10px;
+    font-weight: 500;
+    transition: color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .bottom-nav-item.active {
+    color: var(--navy);
+  }
+
+  .bottom-nav-item.active svg {
+    stroke: var(--navy);
+  }
+
+  /* Push content above bottom nav */
+  main {
+    padding-bottom: 80px !important;
+  }
+
+  /* Mobile trade cards — shown only on mobile */
+  .trade-cards-mobile {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+  }
+
+  .trade-card {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+
+  .trade-card-row1 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+
+  .trade-card-row2 {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-faint);
+  }
+
+  .trade-table-desktop {
+    display: none;
+  }
+}
+
+@media (min-width: 769px) {
+  .trade-cards-mobile {
+    display: none;
+  }
+}

@@ -103,8 +103,38 @@ export default function TradesTable({ trades, onUpdate, onDelete }) {
         </span>
       </div>
 
-      {/* Table */}
-      <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 520 }}>
+      {/* Mobile cards */}
+      <div className="trade-cards-mobile">
+        {filtered.length === 0 && (
+          <div style={{ textAlign: 'center', color: 'var(--text-faint)', padding: '32px 0', fontSize: 13 }}>No closed trades yet</div>
+        )}
+        {filtered.map(t => (
+          <div key={t.id} className="trade-card">
+            <div className="trade-card-row1">
+              <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: '0.02em', flex: 1 }}>{t.ticker}</span>
+              <span className={`badge ${t.direction === 'L' ? 'badge-green' : 'badge-red'}`} style={{ fontSize: 10 }}>
+                {t.direction === 'L' ? 'Long' : 'Short'}
+              </span>
+              <span style={{ fontSize: 16, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: pnlColor(t.pnl), minWidth: 72, textAlign: 'right' }}>
+                {fmt(t.pnl)}
+              </span>
+            </div>
+            <div className="trade-card-row2">
+              <span>{t.date}</span>
+              {t.entry && <><span>·</span><span>${parseFloat(t.entry).toFixed(2)}</span></>}
+              {t.quantity && <><span>·</span><span>{t.quantity} shares</span></>}
+              {t.setup && <><span>·</span><span>{t.setup}</span></>}
+            </div>
+            <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+              <button className="btn btn-ghost" style={{ flex: 1, padding: '5px', fontSize: 12, justifyContent: 'center' }} onClick={() => setEditing(t)}>Edit</button>
+              <button className="btn btn-danger" style={{ flex: 1, padding: '5px', fontSize: 12, justifyContent: 'center' }} onClick={() => setConfirm(t.id)}>Delete</button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop table */}
+      <div className="trade-table-desktop" style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 520 }}>
         <table className="trade-table">
           <thead>
             <tr>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Menu } from 'lucide-react';
+import { Menu, LayoutDashboard, TrendingUp, BarChart2, BookOpen, MoreHorizontal } from 'lucide-react';
 import { useTrades } from './hooks/useTrades';
 import Sidebar from './components/Sidebar';
 import StatCard from './components/StatCard';
@@ -107,6 +107,14 @@ export default function App() {
     tax: 'Tax Report',
   };
 
+  const BOTTOM_NAV = [
+    { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { key: 'trades',    label: 'Trades',    icon: TrendingUp },
+    { key: 'stats',     label: 'Stats',     icon: BarChart2 },
+    { key: 'journal',   label: 'Journal',   icon: BookOpen },
+    { key: '__more',    label: 'More',      icon: MoreHorizontal },
+  ];
+
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }}>
       {/* Sidebar */}
@@ -181,6 +189,20 @@ export default function App() {
       {showImport && (
         <ImportModal onImport={handleImport} onClose={() => setShowImport(false)} />
       )}
+
+      {/* Bottom navigation — mobile only */}
+      <nav className="bottom-nav">
+        {BOTTOM_NAV.map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            className={`bottom-nav-item${section === key ? ' active' : ''}`}
+            onClick={() => key === '__more' ? setSidebarOpen(true) : setSection(key)}
+          >
+            <Icon size={20} strokeWidth={section === key ? 2.2 : 1.6} />
+            <span>{label}</span>
+          </button>
+        ))}
+      </nav>
     </div>
   );
 }
