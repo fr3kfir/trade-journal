@@ -26,7 +26,7 @@ function getLegs(closeTrade, allTrades) {
 function ExpandedLegs({ legs }) {
   if (!legs.length) return (
     <tr>
-      <td colSpan={10} style={{ padding: '10px 32px', color: 'var(--text-faint)', fontSize: 12, background: 'var(--bg-card)' }}>
+      <td colSpan={11} style={{ padding: '10px 32px', color: 'var(--text-faint)', fontSize: 12, background: 'var(--bg-card)' }}>
         No opening legs found for this position
       </td>
     </tr>
@@ -34,7 +34,7 @@ function ExpandedLegs({ legs }) {
   return (
     <>
       <tr>
-        <td colSpan={10} style={{ background: 'var(--bg-card)', padding: '6px 32px 2px', fontSize: 10, fontWeight: 700, color: 'var(--text-faint)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+        <td colSpan={11} style={{ background: 'var(--bg-card)', padding: '6px 32px 2px', fontSize: 10, fontWeight: 700, color: 'var(--text-faint)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
           Opening legs ({legs.length})
         </td>
       </tr>
@@ -122,8 +122,31 @@ export default function TradesTable({ trades, onUpdate, onDelete }) {
             <div className="trade-card-row2">
               <span>{t.date}</span>
               {t.entry && <><span>·</span><span>${parseFloat(t.entry).toFixed(2)}</span></>}
-              {t.quantity && <><span>·</span><span>{t.quantity} shares</span></>}
-              {t.setup && <><span>·</span><span>{t.setup}</span></>}
+              {t.quantity && <><span>·</span><span>{t.quantity} sh</span></>}
+              {t.commission != null && <><span>·</span><span style={{ color: 'var(--red)' }}>-${parseFloat(t.commission).toFixed(2)} comm</span></>}
+              {t.setup && <><span>·</span><span style={{ color: 'var(--text-muted)' }}>{t.setup}</span></>}
+              {t.r_value != null && (
+                <><span>·</span>
+                <span style={{ fontWeight: 700, color: t.r_value >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                  {t.r_value >= 0 ? '+' : ''}{parseFloat(t.r_value).toFixed(2)}R
+                </span></>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 6, alignItems: 'center' }}>
+              {t.execution_score != null && (
+                <span style={{ fontSize: 12, color: '#f59e0b' }}>
+                  {'★'.repeat(t.execution_score)}{'☆'.repeat(5 - t.execution_score)}
+                </span>
+              )}
+              {t.followed_rules != null && (
+                <span style={{
+                  fontSize: 11, fontWeight: 600, padding: '1px 7px', borderRadius: 20,
+                  background: t.followed_rules ? 'rgba(52,211,153,0.15)' : 'rgba(248,113,113,0.15)',
+                  color: t.followed_rules ? 'var(--green)' : 'var(--red)',
+                }}>
+                  {t.followed_rules ? '✓ Rules' : '✗ Rules'}
+                </span>
+              )}
             </div>
             <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
               <button className="btn btn-ghost" style={{ flex: 1, padding: '5px', fontSize: 12, justifyContent: 'center' }} onClick={() => setEditing(t)}>Edit</button>
@@ -145,14 +168,17 @@ export default function TradesTable({ trades, onUpdate, onDelete }) {
               <th>Price</th>
               <th>Shares</th>
               <th>P&amp;L</th>
-              <th>Commission</th>
+              <th>Comm.</th>
+              <th>R</th>
               <th>Setup</th>
+              <th>Exec</th>
+              <th>Rules</th>
               <th style={{ textAlign: 'right' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 && (
-              <tr><td colSpan={10} style={{ textAlign: 'center', color: 'var(--text-faint)', padding: 40 }}>No closed trades yet</td></tr>
+              <tr><td colSpan={14} style={{ textAlign: 'center', color: 'var(--text-faint)', padding: 40 }}>No closed trades yet</td></tr>
             )}
             {filtered.map(t => {
               const isOpen = expanded.has(t.id);
@@ -178,10 +204,26 @@ export default function TradesTable({ trades, onUpdate, onDelete }) {
                     <td style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: pnlColor(t.pnl) }}>
                       <span className="amount">{fmt(t.pnl)}</span>
                     </td>
-                    <td style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--red)', fontSize: 12 }}>
-                      <span className="amount">{t.commission ? `-$${Math.abs(parseFloat(t.commission)).toFixed(2)}` : '—'}</span>
+                    <td style={{ fontVariantNumeric: 'tabular-nums', fontSize: 12, color: t.commission ? 'var(--red)' : 'var(--text-faint)' }}>
+                      {t.commission != null ? `-$${parseFloat(t.commission).toFixed(2)}` : '—'}
+                    </td>
+                    <td style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700, fontSize: 12 }}>
+                      {t.r_value != null
+                        ? <span style={{ color: t.r_value >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                            {t.r_value >= 0 ? '+' : ''}{parseFloat(t.r_value).toFixed(2)}R
+                          </span>
+                        : <span style={{ color: 'var(--text-faint)' }}>—</span>
+                      }
                     </td>
                     <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{t.setup || '—'}</td>
+                    <td style={{ fontSize: 13, color: '#f59e0b', whiteSpace: 'nowrap' }}>
+                      {t.execution_score != null ? '★'.repeat(t.execution_score) : <span style={{ color: 'var(--text-faint)' }}>—</span>}
+                    </td>
+                    <td style={{ fontSize: 11, fontWeight: 600 }}>
+                      {t.followed_rules === true && <span style={{ color: 'var(--green)' }}>✓</span>}
+                      {t.followed_rules === false && <span style={{ color: 'var(--red)' }}>✗</span>}
+                      {t.followed_rules == null && <span style={{ color: 'var(--text-faint)' }}>—</span>}
+                    </td>
                     <td style={{ textAlign: 'right' }} onClick={e => e.stopPropagation()}>
                       <button className="btn btn-ghost" style={{ padding: '3px 9px', fontSize: 11, marginRight: 4 }} onClick={() => setEditing(t)}>Edit</button>
                       <button className="btn btn-danger" style={{ padding: '3px 9px', fontSize: 11 }} onClick={() => setConfirm(t.id)}>Del</button>
