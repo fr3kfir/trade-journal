@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { exportMonthlyExcel } from './utils/exportExcel';
 import { Menu, LayoutDashboard, TrendingUp, BarChart2, BookOpen, MoreHorizontal, Eye, EyeOff } from 'lucide-react';
 import { useTrades } from './hooks/useTrades';
 import Sidebar from './components/Sidebar';
@@ -15,6 +16,8 @@ import Scenarios from './components/Scenarios';
 import Learning from './components/Learning';
 import Routine from './components/Routine';
 import TaxReport from './components/TaxReport';
+import TradeReview from './components/TradeReview';
+import SettingsModal from './components/SettingsModal';
 
 function calcSummary(trades) {
   const closed = trades.filter(t => t.pnl != null);
@@ -39,6 +42,12 @@ export default function App() {
   const [syncing, setSyncing] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [hideAmounts, setHideAmounts] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showExcelModal, setShowExcelModal] = useState(false);
+  const [excelMonth, setExcelMonth] = useState(() => new Date().getMonth() + 1);
+  const [excelYear, setExcelYear] = useState(() => new Date().getFullYear());
+  const [excelRisk, setExcelRisk] = useState(400);
+  const [excelMsg, setExcelMsg] = useState('');
   const s = calcSummary(trades);
 
   useEffect(() => {
@@ -101,9 +110,20 @@ export default function App() {
     finally { setSyncing(false); setTimeout(() => setImportMsg(''), 5000); }
   };
 
+  const handleExcelExport = async () => {
+    try {
+      setExcelMsg('Generating...');
+      const count = await exportMonthlyExcel(trades, excelYear, excelMonth, excelRisk);
+      setExcelMsg(`✓ Exported ${count} trades`);
+      setTimeout(() => { setExcelMsg(''); setShowExcelModal(false); }, 2000);
+    } catch (e) {
+      setExcelMsg(`Error: ${e.message}`);
+    }
+  };
+
   const PAGE_TITLES = {
     dashboard: 'Dashboard', trades: 'Trade Log', portfolio: 'Portfolio',
-    stats: 'Statistics', journal: 'Journal', survey: 'Daily Check-in',
+    stats: 'Statistics', review: 'Trade Review', journal: 'Journal', survey: 'Daily Check-in',
     scenarios: 'If / Then', learning: 'Learning', routine: 'Daily Routine',
     tax: 'Tax Report',
   };
@@ -119,7 +139,7 @@ export default function App() {
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }} className={hideAmounts ? 'hide-amounts' : ''}>
       {/* Sidebar */}
-      <Sidebar active={section} onSelect={setSection} mobileOpen={sidebarOpen} onMobileClose={() => setSidebarOpen(false)} />
+      <Sidebar active={section} onSelect={setSection} mobileOpen={sidebarOpen} onMobileClose={() => setSidebarOpen(false)} onExcelExport={() => setShowExcelModal(true)} />
 
       {/* Main area */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
@@ -134,10 +154,12 @@ export default function App() {
             <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>{PAGE_TITLES[section]}</span>
             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
               {importMsg && <span style={{ fontSize: 12, color: 'var(--green)', fontWeight: 500 }} className="hide-mobile">{importMsg}</span>}
+              <button className="btn btn-ghost hide-mobile" onClick={() => setShowSettings(true)} style={{ fontSize: 12 }}>⚙️ IBKR</button>
               <button className="btn btn-ghost hide-mobile" onClick={handleManualSync} disabled={syncing} style={{ fontSize: 12 }}>
                 {syncing ? 'Syncing...' : 'Sync IBKR'}
               </button>
               <button className="btn btn-ghost hide-mobile" onClick={() => { if(confirm('Delete all IBKR trades?')) { clearIbkrTrades(); setImportMsg('IBKR trades cleared'); setTimeout(() => setImportMsg(''), 3000); }}} style={{ fontSize: 12, color: 'var(--red)' }}>Clear IBKR</button>
+              <button className="btn btn-ghost hide-mobile" onClick={() => setShowExcelModal(true)} style={{ fontSize: 12, color: '#34d399' }}>📊 Excel</button>
               <button className="btn btn-ghost hide-mobile" onClick={handleExportBackup} style={{ fontSize: 12 }}>Export</button>
               <label className="btn btn-ghost" style={{ fontSize: 12, cursor: 'pointer' }}>
                 Restore <input type="file" accept=".json" onChange={handleImportBackup} style={{ display: 'none' }} />
@@ -177,7 +199,7 @@ export default function App() {
           )}
 
           {section === 'trades'    && <div className="table-scroll"><TradesTable trades={trades} onUpdate={updateTrade} onDelete={deleteTrade} /></div>}
-          {section === 'portfolio' && <Portfolio />}
+          {section === 'portfolio' && <Portfolio trades={trades} />}
           {section === 'stats'     && <Stats trades={trades} />}
           {section === 'journal'   && <JournalSection />}
           {section === 'survey'    && <DailySurvey />}
@@ -185,6 +207,7 @@ export default function App() {
           {section === 'learning'  && <Learning />}
           {section === 'routine'   && <Routine />}
           {section === 'tax'       && <TaxReport />}
+          {section === 'review'    && <TradeReview trades={trades} onUpdate={updateTrade} />}
 
         </main>
       </div>
@@ -197,6 +220,62 @@ export default function App() {
       )}
       {showImport && (
         <ImportModal onImport={handleImport} onClose={() => setShowImport(false)} />
+      )}
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+
+      {/* Excel Export Modal */}
+      {showExcelModal && (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowExcelModal(false)}>
+          <div className="modal" style={{ maxWidth: 380 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <span style={{ fontSize: 15, fontWeight: 600 }}>📊 Export Monthly Excel</span>
+              <button onClick={() => setShowExcelModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-faint)', cursor: 'pointer', fontSize: 20 }}>×</button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <label style={{ fontSize: 11, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Month</label>
+                  <select className="input" value={excelMonth} onChange={e => setExcelMonth(Number(e.target.value))}>
+                    {['January','February','March','April','May','June','July','August','September','October','November','December'].map((m, i) => (
+                      <option key={i} value={i + 1}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <label style={{ fontSize: 11, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Year</label>
+                  <input className="input" type="number" value={excelYear} onChange={e => setExcelYear(Number(e.target.value))} min={2020} max={2030} />
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{ fontSize: 11, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Risk Per Trade ($) — for R calculations</label>
+                <input className="input" type="number" value={excelRisk} onChange={e => setExcelRisk(Number(e.target.value))} placeholder="400" />
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-faint)', background: 'var(--bg-card)', borderRadius: 8, padding: '10px 12px' }}>
+                {(() => {
+                  const count = trades.filter(t => {
+                    if (t.pnl == null || !t.date) return false;
+                    const [y, m] = t.date.split('-').map(Number);
+                    return y === excelYear && m === excelMonth;
+                  }).length;
+                  return count > 0
+                    ? <span style={{ color: 'var(--green)' }}>✓ {count} trades found for this month</span>
+                    : <span style={{ color: 'var(--red)' }}>⚠ No closed trades for this month</span>;
+                })()}
+              </div>
+              {excelMsg && (
+                <div style={{ fontSize: 12, color: excelMsg.startsWith('Error') ? 'var(--red)' : 'var(--green)', textAlign: 'center', fontWeight: 600 }}>
+                  {excelMsg}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button className="btn btn-ghost" onClick={() => setShowExcelModal(false)}>Cancel</button>
+                <button className="btn btn-primary" onClick={handleExcelExport} style={{ background: '#059669' }}>
+                  ⬇ Download Excel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Bottom navigation — mobile only */}

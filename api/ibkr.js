@@ -1,7 +1,10 @@
 import https from 'https';
+import { Redis } from '@upstash/redis';
 
-const TOKEN    = process.env.IBKR_TOKEN;
-const QUERY_ID = process.env.IBKR_QUERY_ID;
+const redis = new Redis({
+  url: process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL,
+  token: process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN,
+});
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
@@ -41,8 +44,13 @@ export default async function handler(req, res) {
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Cache-Control', 'no-store');
 
+  // Load credentials: Redis takes priority over env vars
+  const settings = await redis.get('settings').catch(() => ({})) || {};
+  const TOKEN    = settings.ibkrToken    || process.env.IBKR_TOKEN;
+  const QUERY_ID = settings.ibkrQueryId  || process.env.IBKR_QUERY_ID;
+
   if (!TOKEN || !QUERY_ID) {
-    return res.status(500).json({ error: 'IBKR credentials not configured' });
+    return res.status(500).json({ error: 'IBKR credentials not configured. Go to Settings in the app to add your token.' });
   }
 
   try {
