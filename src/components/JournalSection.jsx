@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Plus, Star, Trash2, ChevronDown, ChevronUp, X } from 'lucide-react';
 import { useLocalStore } from '../hooks/useLocalStore';
 
@@ -41,6 +41,28 @@ export default function JournalSection() {
   const removeImage = (idx) => {
     setDraft(d => ({ ...d, images: d.images.filter((_, i) => i !== idx) }));
   };
+
+  // Global paste listener — captures screenshots when the form is open
+  useEffect(() => {
+    if (form === null) return;
+    const onPasteGlobal = (e) => {
+      const items = Array.from(e.clipboardData?.items || []);
+      const imageItems = items.filter(item => item.type.startsWith('image/'));
+      if (imageItems.length === 0) return;
+      e.preventDefault();
+      imageItems.forEach(item => {
+        const file = item.getAsFile();
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          setDraft(d => ({ ...d, images: [...(d.images || []), ev.target.result] }));
+        };
+        reader.readAsDataURL(file);
+      });
+    };
+    document.addEventListener('paste', onPasteGlobal);
+    return () => document.removeEventListener('paste', onPasteGlobal);
+  }, [form]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -136,8 +158,7 @@ export default function JournalSection() {
               <label style={lbl}>Content</label>
               <textarea className="input" rows={6} value={draft.content}
                 onChange={e => setDraft(d => ({ ...d, content: e.target.value }))}
-                onPaste={handlePaste}
-                placeholder="Write your thoughts, analysis, lessons… paste images with Ctrl+V"
+                placeholder="Write your thoughts… paste screenshots with Ctrl+V anywhere"
                 style={{ resize: 'vertical' }} />
               {draft.images?.length > 0 && (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
