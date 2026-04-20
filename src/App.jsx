@@ -19,6 +19,19 @@ import TaxReport from './components/TaxReport';
 import TradeReview from './components/TradeReview';
 import SettingsModal from './components/SettingsModal';
 
+const TF_RANGES = ['1W', '1M', '3M', 'YTD', 'ALL'];
+
+function filterByTimeframe(trades, tf) {
+  if (tf === 'ALL') return trades;
+  const now = new Date();
+  let cutoff;
+  if (tf === '1W')  { cutoff = new Date(now); cutoff.setDate(now.getDate() - 7); }
+  else if (tf === '1M')  { cutoff = new Date(now); cutoff.setMonth(now.getMonth() - 1); }
+  else if (tf === '3M')  { cutoff = new Date(now); cutoff.setMonth(now.getMonth() - 3); }
+  else if (tf === 'YTD') { cutoff = new Date(now.getFullYear(), 0, 1); }
+  return trades.filter(t => t.date && new Date(t.date) >= cutoff);
+}
+
 function calcSummary(trades) {
   const closed = trades.filter(t => t.pnl != null);
   const pnls = closed.map(t => parseFloat(t.pnl));
@@ -43,12 +56,37 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [hideAmounts, setHideAmounts] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [dashTimeframe, setDashTimeframe] = useState('ALL');
   const [showExcelModal, setShowExcelModal] = useState(false);
   const [excelMonth, setExcelMonth] = useState(() => new Date().getMonth() + 1);
   const [excelYear, setExcelYear] = useState(() => new Date().getFullYear());
   const [excelRisk, setExcelRisk] = useState(400);
   const [excelMsg, setExcelMsg] = useState('');
-  const s = calcSummary(trades);
+  const filteredTrades = filterByTimeframe(trades, dashTimeframe);
+  const s = calcSummary(filteredTrades);
+
+  // Auto daily IBKR sync — runs once per day automatically
+  useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const lastSync = localStorage.getItem('ibkr_last_auto_sync');
+    if (lastSync !== today) {
+      const autoSync = async () => {
+        try {
+          const r = await fetch('/api/ibkr');
+          const d = await r.json();
+          if (!d.error) {
+            const count = importTrades(d.trades || []);
+            if (count > 0) {
+              setImportMsg(`Auto-synced ${count} new trades from IBKR`);
+              setTimeout(() => setImportMsg(''), 5000);
+            }
+            localStorage.setItem('ibkr_last_auto_sync', today);
+          }
+        } catch {}
+      };
+      autoSync();
+    }
+  }, []);
 
   useEffect(() => {
     // Catch migration data from URL hash
@@ -153,11 +191,23 @@ export default function App() {
             </button>
             <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>{PAGE_TITLES[section]}</span>
             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+              {/* Sync button — visible on mobile too */}
+              <button
+                onClick={handleManualSync}
+                disabled={syncing}
+                title="Sync IBKR"
+                style={{
+                  background: syncing ? 'var(--bg-card)' : 'var(--navy)',
+                  color: '#fff', border: 'none', borderRadius: 8,
+                  padding: '6px 12px', fontSize: 12, fontWeight: 600,
+                  cursor: syncing ? 'not-allowed' : 'pointer', display: 'flex',
+                  alignItems: 'center', gap: 5, opacity: syncing ? 0.7 : 1,
+                }}
+              >
+                {syncing ? '⟳' : '⇅'} {syncing ? 'Syncing…' : 'Sync'}
+              </button>
               {importMsg && <span style={{ fontSize: 12, color: 'var(--green)', fontWeight: 500 }} className="hide-mobile">{importMsg}</span>}
               <button className="btn btn-ghost hide-mobile" onClick={() => setShowSettings(true)} style={{ fontSize: 12 }}>⚙️ IBKR</button>
-              <button className="btn btn-ghost hide-mobile" onClick={handleManualSync} disabled={syncing} style={{ fontSize: 12 }}>
-                {syncing ? 'Syncing...' : 'Sync IBKR'}
-              </button>
               <button className="btn btn-ghost hide-mobile" onClick={() => { if(confirm('Delete all IBKR trades?')) { clearIbkrTrades(); setImportMsg('IBKR trades cleared'); setTimeout(() => setImportMsg(''), 3000); }}} style={{ fontSize: 12, color: 'var(--red)' }}>Clear IBKR</button>
               <button className="btn btn-ghost hide-mobile" onClick={() => setShowExcelModal(true)} style={{ fontSize: 12, color: '#34d399' }}>📊 Excel</button>
               <button className="btn btn-ghost hide-mobile" onClick={handleExportBackup} style={{ fontSize: 12 }}>Export</button>
@@ -183,6 +233,18 @@ export default function App() {
 
           {section === 'dashboard' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+              {/* Timeframe filter */}
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-faint)', marginRight: 2 }}>Period:</span>
+                {TF_RANGES.map(tf => (
+                  <button key={tf} onClick={() => setDashTimeframe(tf)} style={{
+                    fontSize: 11, padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                    background: dashTimeframe === tf ? 'var(--navy)' : 'var(--bg-card)',
+                    color: dashTimeframe === tf ? '#fff' : 'var(--text-muted)',
+                    fontWeight: dashTimeframe === tf ? 600 : 400, fontFamily: 'inherit', transition: 'all 0.15s',
+                  }}>{tf}</button>
+                ))}
+              </div>
               <div className="stat-card-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
                 <StatCard label="Total P&L" value={`${s.total >= 0 ? '+' : ''}$${Math.abs(s.total).toFixed(2)}`} color={s.total >= 0 ? 'var(--green)' : 'var(--red)'} sub={`${s.count} closed trades`} />
                 <StatCard label="Win Rate"  value={`${s.winRate}%`} color={parseFloat(s.winRate) >= 50 ? 'var(--green)' : 'var(--red)'} sub={`${s.wins}W / ${s.losses}L`} />
@@ -191,9 +253,9 @@ export default function App() {
                 <StatCard label="Avg R"     value={s.avgR ? `${s.avgR}R` : '—'} color="var(--navy)" sub="Per trade" />
                 <StatCard label="Closed"    value={s.count} color="var(--text)" sub="Total trades" />
               </div>
-              <PnLChart trades={trades} />
+              <PnLChart trades={filteredTrades} externalRange={dashTimeframe === 'ALL' ? 'ALL' : dashTimeframe} />
               <div className="table-scroll">
-                <TradesTable trades={trades.slice(0, 50)} onUpdate={updateTrade} onDelete={deleteTrade} />
+                <TradesTable trades={filteredTrades.slice(0, 50)} onUpdate={updateTrade} onDelete={deleteTrade} />
               </div>
             </div>
           )}

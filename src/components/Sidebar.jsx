@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, TrendingUp, Briefcase, BarChart2,
-  BookOpen, ClipboardCheck, Zap, GraduationCap, CheckSquare, ChevronRight, X, Receipt
+  BookOpen, ClipboardCheck, Zap, GraduationCap, CheckSquare, ChevronRight, X, Receipt, FileSpreadsheet, StickyNote
 } from 'lucide-react';
 
 const SECTIONS = [
@@ -15,7 +15,8 @@ const SECTIONS = [
   {
     group: 'ANALYTICS',
     items: [
-      { key: 'stats',      label: 'Statistics',    icon: BarChart2 },
+      { key: 'stats',   label: 'Statistics',    icon: BarChart2  },
+      { key: 'review',  label: 'Trade Review',  icon: StickyNote },
     ],
   },
   {
@@ -36,7 +37,7 @@ const SECTIONS = [
   },
 ];
 
-export default function Sidebar({ active, onSelect, mobileOpen, onMobileClose }) {
+export default function Sidebar({ active, onSelect, mobileOpen, onMobileClose, onExcelExport }) {
   const handleSelect = (key) => {
     onSelect(key);
     if (onMobileClose) onMobileClose();
@@ -71,7 +72,7 @@ export default function Sidebar({ active, onSelect, mobileOpen, onMobileClose })
         </div>
 
         {/* Nav */}
-        <nav style={{ flex: 1, padding: '12px 10px', overflowY: 'auto' }}>
+        <nav style={{ flex: 1, padding: '12px 10px', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
           {SECTIONS.map(section => (
             <div key={section.group} style={{ marginBottom: 6 }}>
               <div style={{
@@ -109,6 +110,27 @@ export default function Sidebar({ active, onSelect, mobileOpen, onMobileClose })
               })}
             </div>
           ))}
+          {/* Excel Export — visible on mobile via sidebar */}
+          {onExcelExport && (
+            <div style={{ marginTop: 'auto', paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+              <button
+                onClick={() => { onExcelExport(); if (onMobileClose) onMobileClose(); }}
+                style={{
+                  width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '9px 10px', borderRadius: 8, border: 'none',
+                  cursor: 'pointer', textAlign: 'left',
+                  background: 'transparent', color: '#34d399',
+                  fontWeight: 500, fontSize: 13.5, fontFamily: 'inherit',
+                  transition: 'all 0.12s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-card)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+              >
+                <FileSpreadsheet size={15} strokeWidth={1.8} />
+                <span>Export Excel</span>
+              </button>
+            </div>
+          )}
         </nav>
       </aside>
     </>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, StickyNote } from 'lucide-react';
 import TradeModal from './TradeModal';
+import TradeNotesModal from './TradeNotesModal';
 
 function pnlColor(v) {
   if (v > 0) return 'var(--green)';
@@ -59,6 +60,7 @@ function ExpandedLegs({ legs }) {
 
 export default function TradesTable({ trades, onUpdate, onDelete }) {
   const [editing, setEditing] = useState(null);
+  const [notes, setNotes] = useState(null);
   const [filter, setFilter] = useState('');
   const [dirFilter, setDirFilter] = useState('ALL');
   const [confirm, setConfirm] = useState(null);
@@ -150,6 +152,9 @@ export default function TradesTable({ trades, onUpdate, onDelete }) {
             </div>
             <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
               <button className="btn btn-ghost" style={{ flex: 1, padding: '5px', fontSize: 12, justifyContent: 'center' }} onClick={() => setEditing(t)}>Edit</button>
+              <button className="btn btn-ghost" style={{ flex: 1, padding: '5px', fontSize: 12, justifyContent: 'center', color: (t.notes || t.chart_images?.length) ? 'var(--navy)' : undefined }} onClick={() => setNotes(t)}>
+                <StickyNote size={13} style={{ marginRight: 4 }} />Notes{t.chart_images?.length ? ` (${t.chart_images.length})` : ''}
+              </button>
               <button className="btn btn-danger" style={{ flex: 1, padding: '5px', fontSize: 12, justifyContent: 'center' }} onClick={() => setConfirm(t.id)}>Delete</button>
             </div>
           </div>
@@ -226,6 +231,10 @@ export default function TradesTable({ trades, onUpdate, onDelete }) {
                     </td>
                     <td style={{ textAlign: 'right' }} onClick={e => e.stopPropagation()}>
                       <button className="btn btn-ghost" style={{ padding: '3px 9px', fontSize: 11, marginRight: 4 }} onClick={() => setEditing(t)}>Edit</button>
+                      <button className="btn btn-ghost" style={{ padding: '3px 9px', fontSize: 11, marginRight: 4, color: (t.notes || t.chart_images?.length) ? 'var(--navy)' : undefined }} onClick={() => setNotes(t)} title="Notes & Charts">
+                        <StickyNote size={12} />
+                        {t.chart_images?.length ? <span style={{ fontSize: 10, marginLeft: 2 }}>{t.chart_images.length}</span> : null}
+                      </button>
                       <button className="btn btn-danger" style={{ padding: '3px 9px', fontSize: 11 }} onClick={() => setConfirm(t.id)}>Del</button>
                     </td>
                   </tr>
@@ -242,6 +251,14 @@ export default function TradesTable({ trades, onUpdate, onDelete }) {
           trade={editing}
           onSave={fields => { onUpdate(editing.id, fields); setEditing(null); }}
           onClose={() => setEditing(null)}
+        />
+      )}
+
+      {notes && (
+        <TradeNotesModal
+          trade={notes}
+          onSave={fields => { onUpdate(notes.id, fields); }}
+          onClose={() => setNotes(null)}
         />
       )}
 
