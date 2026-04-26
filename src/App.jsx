@@ -17,6 +17,7 @@ import Learning from './components/Learning';
 import Routine from './components/Routine';
 import TaxReport from './components/TaxReport';
 import TradeReview from './components/TradeReview';
+import CalendarView from './components/CalendarView';
 import SettingsModal from './components/SettingsModal';
 
 const TF_RANGES = ['1W', '1M', '3M', 'YTD', 'ALL'];
@@ -161,7 +162,7 @@ export default function App() {
 
   const PAGE_TITLES = {
     dashboard: 'Dashboard', trades: 'Trade Log', portfolio: 'Portfolio',
-    stats: 'Statistics', review: 'Trade Review', journal: 'Journal', survey: 'Daily Check-in',
+    stats: 'Statistics', calendar: 'Calendar', review: 'Trade Review', journal: 'Journal', survey: 'Daily Check-in',
     scenarios: 'If / Then', learning: 'Learning', routine: 'Daily Routine',
     tax: 'Tax Report',
   };
@@ -263,6 +264,7 @@ export default function App() {
           {section === 'trades'    && <div className="table-scroll"><TradesTable trades={trades} onUpdate={updateTrade} onDelete={deleteTrade} /></div>}
           {section === 'portfolio' && <Portfolio trades={trades} />}
           {section === 'stats'     && <Stats trades={trades} />}
+          {section === 'calendar'  && <CalendarView trades={trades} />}
           {section === 'journal'   && <JournalSection />}
           {section === 'survey'    && <DailySurvey />}
           {section === 'scenarios' && <Scenarios />}
