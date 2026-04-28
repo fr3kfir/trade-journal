@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Plus, Star, Trash2, ChevronDown, ChevronUp, X } from 'lucide-react';
-import { useLocalStore } from '../hooks/useLocalStore';
+import { useJournalStore } from '../hooks/useJournalStore';
 
 const CATEGORIES = ['Strategy', 'Mistake', 'Win', 'Market Thoughts', 'Psychology', 'Insight', 'Planning', 'Other'];
 const MOODS = ['Very Positive', 'Positive', 'Neutral', 'Negative', 'Very Negative'];
@@ -9,7 +9,7 @@ const MOOD_COLORS = { 'Very Positive': '#059669', 'Positive': '#10b981', 'Neutra
 const EMPTY = { entry_date: new Date().toISOString().slice(0,10), title: '', content: '', category: 'Insight', mood: 'Neutral', is_important: false, images: [] };
 
 export default function JournalSection() {
-  const { data: entries, add, update, remove } = useLocalStore('apex_journal', []);
+  const { data: entries, add, update, remove } = useJournalStore();
   const [form, setForm] = useState(null);
   const [draft, setDraft] = useState(EMPTY);
   const [expanded, setExpanded] = useState(null);
