@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 
 const KEY = 'apex_journal';
+const URL = '/api/trades?section=journal';
 
 function pushToServer(entries) {
-  return fetch('/api/journal', {
+  return fetch(URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ data: entries }),
@@ -29,7 +30,7 @@ export function useJournalStore() {
 
   useEffect(() => {
     const local = JSON.parse(localStorage.getItem(KEY) || '[]');
-    fetch('/api/journal')
+    fetch(URL)
       .then(r => r.json())
       .then(d => {
         if (d.error) throw new Error(d.error);
