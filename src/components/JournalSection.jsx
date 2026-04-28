@@ -9,7 +9,7 @@ const MOOD_COLORS = { 'Very Positive': '#059669', 'Positive': '#10b981', 'Neutra
 const EMPTY = { entry_date: new Date().toISOString().slice(0,10), title: '', content: '', category: 'Insight', mood: 'Neutral', is_important: false, images: [] };
 
 export default function JournalSection() {
-  const { data: entries, add, update, remove } = useJournalStore();
+  const { data: entries, add, update, remove, syncStatus } = useJournalStore();
   const [form, setForm] = useState(null);
   const [draft, setDraft] = useState(EMPTY);
   const [expanded, setExpanded] = useState(null);
@@ -69,7 +69,15 @@ export default function JournalSection() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <div style={{ fontSize: 18, fontWeight: 700 }}>Trading Journal</div>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>{entries.length} entries</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span>{entries.length} entries</span>
+            <span style={{
+              fontSize: 11, fontWeight: 600,
+              color: syncStatus === 'synced' ? '#10b981' : syncStatus === 'loading' ? '#64748b' : syncStatus === 'saving' ? '#f59e0b' : '#dc2626',
+            }}>
+              {syncStatus === 'synced' ? '✓ Synced' : syncStatus === 'loading' ? '⟳ Loading...' : syncStatus === 'saving' ? '↑ Saving...' : `✗ ${syncStatus}`}
+            </span>
+          </div>
         </div>
         <button className="btn btn-primary" onClick={() => { setDraft({ ...EMPTY, entry_date: new Date().toISOString().slice(0,10) }); setForm('new'); }}>
           <Plus size={14} /> New Entry
