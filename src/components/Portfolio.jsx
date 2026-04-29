@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Plus, Trash2, Zap } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Trash2, Zap, RefreshCw } from 'lucide-react';
 import { usePortfolioStore } from '../hooks/usePortfolioStore';
 
 const EMPTY = { symbol: '', quantity: '', entry_price: '', stop_loss: '', notes: '' };
@@ -8,9 +8,34 @@ export default function Portfolio({ trades = [] }) {
   const { data: positions, add, update, remove } = usePortfolioStore();
   const [form, setForm] = useState(null);
   const [draft, setDraft] = useState(EMPTY);
+  const [prices, setPrices] = useState({});
+  const [loadingPrices, setLoadingPrices] = useState(false);
 
   // Only manually-entered trades that are still open (no realized P&L)
   const openTrades = trades.filter(t => t.pnl == null && t.ticker && !t.id?.startsWith('ibkr-'));
+
+  const fetchPrices = () => {
+    const symbols = [
+      ...openTrades.map(t => t.ticker),
+      ...positions.map(p => p.symbol),
+    ].filter(Boolean);
+    const unique = [...new Set(symbols)];
+    if (!unique.length) return;
+    setLoadingPrices(true);
+    Promise.all(
+      unique.map(sym =>
+        fetch(`/api/price?symbol=${encodeURIComponent(sym)}`)
+          .then(r => r.json())
+          .then(d => [sym, d.price])
+          .catch(() => [sym, null])
+      )
+    ).then(results => {
+      setPrices(Object.fromEntries(results));
+      setLoadingPrices(false);
+    });
+  };
+
+  useEffect(() => { fetchPrices(); }, [openTrades.length, positions.length]);
 
   const openAdd = () => { setDraft(EMPTY); setForm('new'); };
   const save = () => {
@@ -32,9 +57,15 @@ export default function Portfolio({ trades = [] }) {
           <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>Open Positions</div>
           <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>{openTrades.length + positions.length} פוזיציות פעילות</div>
         </div>
-        <button className="btn btn-primary" onClick={openAdd} style={{ gap: 6 }}>
-          <Plus size={14} /> Add Position
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-ghost" onClick={fetchPrices} disabled={loadingPrices} style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 5 }}>
+            <RefreshCw size={13} style={{ animation: loadingPrices ? 'spin 1s linear infinite' : 'none' }} />
+            {loadingPrices ? 'טוען...' : 'עדכן מחירים'}
+          </button>
+          <button className="btn btn-primary" onClick={openAdd} style={{ gap: 6 }}>
+            <Plus size={14} /> Add Position
+          </button>
+        </div>
       </div>
 
       {/* Auto-detected from trade journal */}
@@ -55,10 +86,10 @@ export default function Portfolio({ trades = [] }) {
                   <th>Date</th>
                   <th>Shares</th>
                   <th>Entry</th>
+                  <th>Now</th>
+                  <th>Unreal. P&amp;L</th>
                   <th>Stop</th>
-                  <th>Risk/Share</th>
                   <th>Total Risk</th>
-                  <th>Position Value</th>
                 </tr>
               </thead>
               <tbody>
@@ -66,6 +97,8 @@ export default function Portfolio({ trades = [] }) {
                   const entry = parseFloat(t.entry) || 0;
                   const stop = parseFloat(t.stop) || 0;
                   const qty = parseFloat(t.quantity) || 0;
+                  const cur = prices[t.ticker] || null;
+                  const unreal = cur && entry && qty ? (cur - entry) * qty * (t.direction === 'L' ? 1 : -1) : null;
                   return (
                     <tr key={t.id}>
                       <td style={{ fontWeight: 700, letterSpacing: '0.04em' }}>{t.ticker}</td>
@@ -77,10 +110,14 @@ export default function Portfolio({ trades = [] }) {
                       <td style={{ fontSize: 12, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{t.date}</td>
                       <td style={{ fontVariantNumeric: 'tabular-nums' }}>{qty || '—'}</td>
                       <td style={{ fontVariantNumeric: 'tabular-nums' }}>{entry ? `$${entry.toFixed(2)}` : '—'}</td>
+                      <td style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
+                        {cur ? `$${cur.toFixed(2)}` : <span style={{ color: 'var(--text-faint)' }}>—</span>}
+                      </td>
+                      <td style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: unreal == null ? 'var(--text-faint)' : unreal >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                        {unreal != null ? `${unreal >= 0 ? '+' : ''}$${unreal.toFixed(2)}` : '—'}
+                      </td>
                       <td style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--red)' }}>{stop ? `$${stop.toFixed(2)}` : '—'}</td>
-                      <td style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--red)' }}>{riskPerShare(entry, stop) ? `-$${riskPerShare(entry, stop)}` : '—'}</td>
                       <td style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: 'var(--red)' }}>{totalRisk(entry, stop, qty) ? `-$${totalRisk(entry, stop, qty)}` : '—'}</td>
-                      <td style={{ fontVariantNumeric: 'tabular-nums' }}>{positionValue(entry, qty) ? `$${positionValue(entry, qty)}` : '—'}</td>
                     </tr>
                   );
                 })}
@@ -108,10 +145,10 @@ export default function Portfolio({ trades = [] }) {
                   <th>Symbol</th>
                   <th>Shares</th>
                   <th>Entry</th>
+                  <th>Now</th>
+                  <th>Unreal. P&amp;L</th>
                   <th>Stop</th>
-                  <th>Risk/Share</th>
                   <th>Total Risk</th>
-                  <th>Position Value</th>
                   <th>Notes</th>
                   <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
@@ -124,15 +161,21 @@ export default function Portfolio({ trades = [] }) {
                   const entry = parseFloat(p.entry_price) || 0;
                   const stop = parseFloat(p.stop_loss) || 0;
                   const qty = parseFloat(p.quantity) || 0;
+                  const cur = prices[p.symbol] || null;
+                  const unreal = cur && entry && qty ? (cur - entry) * qty : null;
                   return (
                     <tr key={p.id}>
                       <td style={{ fontWeight: 700, letterSpacing: '0.04em' }}>{p.symbol}</td>
                       <td style={{ fontVariantNumeric: 'tabular-nums' }}>{qty}</td>
                       <td style={{ fontVariantNumeric: 'tabular-nums' }}>${entry.toFixed(2)}</td>
-                      <td style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--red)' }}>${stop.toFixed(2)}</td>
-                      <td style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--red)' }}>{riskPerShare(entry, stop) ? `-$${riskPerShare(entry, stop)}` : '—'}</td>
+                      <td style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
+                        {cur ? `$${cur.toFixed(2)}` : <span style={{ color: 'var(--text-faint)' }}>—</span>}
+                      </td>
+                      <td style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: unreal == null ? 'var(--text-faint)' : unreal >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                        {unreal != null ? `${unreal >= 0 ? '+' : ''}$${unreal.toFixed(2)}` : '—'}
+                      </td>
+                      <td style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--red)' }}>{stop ? `$${stop.toFixed(2)}` : '—'}</td>
                       <td style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: 'var(--red)' }}>{totalRisk(entry, stop, qty) ? `-$${totalRisk(entry, stop, qty)}` : '—'}</td>
-                      <td style={{ fontVariantNumeric: 'tabular-nums' }}>{positionValue(entry, qty) ? `$${positionValue(entry, qty)}` : '—'}</td>
                       <td style={{ fontSize: 12, color: 'var(--text-muted)', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.notes || '—'}</td>
                       <td style={{ textAlign: 'right' }}>
                         <button className="btn btn-ghost" style={{ padding: '3px 9px', fontSize: 11, marginRight: 4 }} onClick={() => { setDraft(p); setForm(p.id); }}>Edit</button>

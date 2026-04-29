@@ -1,9 +1,22 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
   AreaChart, Area, CartesianGrid, PieChart, Pie, Legend,
   RadialBarChart, RadialBar,
 } from 'recharts';
+
+const TF_RANGES = ['1W', '1M', '3M', 'YTD', 'ALL'];
+
+function filterByTimeframe(trades, tf) {
+  if (tf === 'ALL') return trades;
+  const now = new Date();
+  let cutoff;
+  if (tf === '1W')  { cutoff = new Date(now); cutoff.setDate(now.getDate() - 7); }
+  else if (tf === '1M')  { cutoff = new Date(now); cutoff.setMonth(now.getMonth() - 1); }
+  else if (tf === '3M')  { cutoff = new Date(now); cutoff.setMonth(now.getMonth() - 3); }
+  else if (tf === 'YTD') { cutoff = new Date(now.getFullYear(), 0, 1); }
+  return trades.filter(t => t.date && new Date(t.date) >= cutoff);
+}
 
 function calcStats(trades) {
   const closed = trades.filter(t => t.pnl != null);
@@ -118,10 +131,24 @@ const GREEN = '#059669';
 const RED = '#DC2626';
 
 export default function Stats({ trades }) {
-  const s = useMemo(() => calcStats(trades), [trades]);
+  const [tf, setTf] = useState('ALL');
+  const filtered = useMemo(() => filterByTimeframe(trades, tf), [trades, tf]);
+  const s = useMemo(() => calcStats(filtered), [filtered]);
 
   if (!s) return (
-    <div className="panel" style={{ textAlign: 'center', color: 'var(--text-faint)', padding: 56 }}>No closed trades yet</div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ display: 'flex', gap: 6 }}>
+        {TF_RANGES.map(r => (
+          <button key={r} onClick={() => setTf(r)} style={{
+            fontSize: 11, padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
+            background: tf === r ? 'var(--navy)' : 'var(--bg-card)',
+            color: tf === r ? '#fff' : 'var(--text-muted)',
+            fontWeight: tf === r ? 600 : 400, fontFamily: 'inherit', transition: 'all 0.15s',
+          }}>{r}</button>
+        ))}
+      </div>
+      <div className="panel" style={{ textAlign: 'center', color: 'var(--text-faint)', padding: 56 }}>No closed trades yet</div>
+    </div>
   );
 
   const fmt = (n) => `${n >= 0 ? '+' : ''}$${Math.abs(n).toFixed(2)}`;
@@ -142,6 +169,18 @@ export default function Stats({ trades }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+      {/* Timeframe filter */}
+      <div style={{ display: 'flex', gap: 6 }}>
+        {TF_RANGES.map(r => (
+          <button key={r} onClick={() => setTf(r)} style={{
+            fontSize: 11, padding: '4px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
+            background: tf === r ? 'var(--navy)' : 'var(--bg-card)',
+            color: tf === r ? '#fff' : 'var(--text-muted)',
+            fontWeight: tf === r ? 600 : 400, fontFamily: 'inherit', transition: 'all 0.15s',
+          }}>{r}</button>
+        ))}
+      </div>
 
       {/* ── Row 1: Key stats ── */}
       <SectionTitle>Performance Overview</SectionTitle>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { exportMonthlyExcel } from './utils/exportExcel';
-import { Menu, LayoutDashboard, TrendingUp, BarChart2, BookOpen, MoreHorizontal, Eye, EyeOff } from 'lucide-react';
+import { Menu, LayoutDashboard, TrendingUp, BarChart2, BookOpen, MoreHorizontal, Eye, EyeOff, Moon, Sun } from 'lucide-react';
 import { useTrades } from './hooks/useTrades';
 import Sidebar from './components/Sidebar';
 import StatCard from './components/StatCard';
@@ -63,6 +63,12 @@ export default function App() {
   const [excelYear, setExcelYear] = useState(() => new Date().getFullYear());
   const [excelRisk, setExcelRisk] = useState(400);
   const [excelMsg, setExcelMsg] = useState('');
+  const [theme, setTheme] = useState(() => localStorage.getItem('apex_theme') || 'light');
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('apex_theme', theme);
+  }, [theme]);
   const filteredTrades = filterByTimeframe(trades, dashTimeframe);
   const s = calcSummary(filteredTrades);
 
@@ -223,6 +229,14 @@ export default function App() {
                 style={{ fontSize: 12, padding: '7px 10px', color: hideAmounts ? 'var(--navy)' : 'var(--text-muted)' }}
               >
                 {hideAmounts ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+              <button
+                className="btn btn-ghost"
+                onClick={() => setTheme(t => t === 'light' ? 'dark' : 'light')}
+                title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
+                style={{ fontSize: 12, padding: '7px 10px' }}
+              >
+                {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
               </button>
               <button className="btn btn-primary" onClick={() => setShowAdd(true)} style={{ fontSize: 12 }}>+ Add</button>
             </div>

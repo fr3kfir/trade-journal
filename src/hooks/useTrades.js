@@ -60,12 +60,16 @@ export function useTrades() {
     setTrades(prev => prev.filter(t => !t.id.startsWith('ibkr-')));
 
   const importTrades = (incoming) => {
-    setTrades(prev => {
-      const existingIds = new Set(prev.map(t => t.id));
-      const fresh = incoming.filter(t => !existingIds.has(t.id));
-      return [...fresh, ...prev].sort((a, b) => new Date(b.date) - new Date(a.date));
-    });
-    return incoming.length;
+    const existingIds = new Set(trades.map(t => t.id));
+    const fresh = incoming.filter(t => !existingIds.has(t.id));
+    if (fresh.length > 0) {
+      setTrades(prev => {
+        const prevIds = new Set(prev.map(t => t.id));
+        const newOnes = incoming.filter(t => !prevIds.has(t.id));
+        return [...newOnes, ...prev].sort((a, b) => new Date(b.date) - new Date(a.date));
+      });
+    }
+    return fresh.length;
   };
 
   return { trades, addTrade, updateTrade, deleteTrade, importTrades, clearIbkrTrades };
