@@ -1,59 +1,16 @@
 import { useState } from 'react';
-import { Plus, Trash2, Zap, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, Zap } from 'lucide-react';
 import { usePortfolioStore } from '../hooks/usePortfolioStore';
 
 const EMPTY = { symbol: '', quantity: '', entry_price: '', stop_loss: '', notes: '' };
-
-function computeIbkrPositions(trades) {
-  const ibkr = trades.filter(t => t.id?.startsWith('ibkr-') && t.ticker);
-  const byTicker = {};
-  for (const t of ibkr) {
-    const qty = parseFloat(t.quantity) || 0;
-    const price = parseFloat(t.entry) || 0;
-    if (!byTicker[t.ticker]) byTicker[t.ticker] = { netQty: 0, totalCost: 0, firstDate: t.date };
-    if (t.direction === 'L') {
-      byTicker[t.ticker].netQty += qty;
-      byTicker[t.ticker].totalCost += qty * price;
-      if (!byTicker[t.ticker].firstDate || t.date < byTicker[t.ticker].firstDate)
-        byTicker[t.ticker].firstDate = t.date;
-    } else {
-      byTicker[t.ticker].netQty -= qty;
-    }
-  }
-  return Object.entries(byTicker)
-    .filter(([, v]) => Math.abs(v.netQty) > 0.001)
-    .map(([ticker, v]) => ({
-      ticker,
-      direction: v.netQty > 0 ? 'L' : 'S',
-      quantity: Math.abs(v.netQty),
-      avgPrice: v.netQty > 0 && v.totalCost > 0 ? (v.totalCost / v.netQty) : 0,
-      firstDate: v.firstDate,
-    }))
-    .sort((a, b) => b.firstDate?.localeCompare(a.firstDate));
-}
 
 export default function Portfolio({ trades = [] }) {
   const { data: positions, add, update, remove } = usePortfolioStore();
   const [form, setForm] = useState(null);
   const [draft, setDraft] = useState(EMPTY);
-  const [syncing, setSyncing] = useState(false);
-  const [syncMsg, setSyncMsg] = useState('');
 
-  const ibkrPositions = computeIbkrPositions(trades);
-
-  const handleSync = async () => {
-    setSyncing(true);
-    try {
-      const r = await fetch('/api/ibkr');
-      const d = await r.json();
-      if (d.error) throw new Error(d.error);
-      setSyncMsg(`✓ עודכן — ${d.count} עסקאות`);
-    } catch (e) { setSyncMsg(`✗ ${e.message}`); }
-    finally { setSyncing(false); setTimeout(() => setSyncMsg(''), 5000); }
-  };
-
-  // Open trades from the journal (no realized P&L = still open)
-  const openTrades = trades.filter(t => t.pnl == null && t.ticker);
+  // Only manually-entered trades that are still open (no realized P&L)
+  const openTrades = trades.filter(t => t.pnl == null && t.ticker && !t.id?.startsWith('ibkr-'));
 
   const openAdd = () => { setDraft(EMPTY); setForm('new'); };
   const save = () => {
@@ -73,66 +30,12 @@ export default function Portfolio({ trades = [] }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>Open Positions</div>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>{ibkrPositions.length + positions.length} פוזיציות פעילות</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>{openTrades.length + positions.length} פוזיציות פעילות</div>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {syncMsg && <span style={{ fontSize: 12, color: syncMsg.startsWith('✓') ? 'var(--green)' : 'var(--red)', fontWeight: 500 }}>{syncMsg}</span>}
-          <button className="btn btn-ghost" onClick={handleSync} disabled={syncing} style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 5 }}>
-            <RefreshCw size={13} style={{ animation: syncing ? 'spin 1s linear infinite' : 'none' }} />
-            {syncing ? 'מסנכרן...' : 'עדכן מ-IBKR'}
-          </button>
-          <button className="btn btn-primary" onClick={openAdd} style={{ gap: 6 }}>
-            <Plus size={14} /> Add Position
-          </button>
-        </div>
+        <button className="btn btn-primary" onClick={openAdd} style={{ gap: 6 }}>
+          <Plus size={14} /> Add Position
+        </button>
       </div>
-
-      {/* IBKR computed open positions */}
-      {ibkrPositions.length > 0 && (
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-            <Zap size={13} style={{ color: '#f59e0b' }} />
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-              IBKR — פוזיציות פתוחות
-            </span>
-          </div>
-          <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
-            <table className="trade-table">
-              <thead>
-                <tr>
-                  <th>Ticker</th>
-                  <th>כיוון</th>
-                  <th>תאריך כניסה</th>
-                  <th>כמות</th>
-                  <th>מחיר ממוצע</th>
-                  <th>שווי פוזיציה</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ibkrPositions.map(p => (
-                  <tr key={p.ticker}>
-                    <td style={{ fontWeight: 700, letterSpacing: '0.04em' }}>{p.ticker}</td>
-                    <td>
-                      <span className={`badge ${p.direction === 'L' ? 'badge-green' : 'badge-red'}`} style={{ fontSize: 10 }}>
-                        {p.direction === 'L' ? 'Long' : 'Short'}
-                      </span>
-                    </td>
-                    <td style={{ fontSize: 12, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{p.firstDate}</td>
-                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>{p.quantity}</td>
-                    <td style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>${p.avgPrice.toFixed(2)}</td>
-                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>${(p.avgPrice * p.quantity).toFixed(0)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-      {ibkrPositions.length === 0 && (
-        <div className="panel" style={{ textAlign: 'center', color: 'var(--text-faint)', padding: 32, fontSize: 13 }}>
-          אין פוזיציות פתוחות מ-IBKR — לחץ "עדכן מ-IBKR" לרענון
-        </div>
-      )}
 
       {/* Auto-detected from trade journal */}
       {openTrades.length > 0 && (
