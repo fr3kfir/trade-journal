@@ -27,7 +27,7 @@ function getLegs(closeTrade, allTrades) {
 function ExpandedLegs({ legs }) {
   if (!legs.length) return (
     <tr>
-      <td colSpan={11} style={{ padding: '10px 32px', color: 'var(--text-faint)', fontSize: 12, background: 'var(--bg-card)' }}>
+      <td colSpan={12} style={{ padding: '10px 32px', color: 'var(--text-faint)', fontSize: 12, background: 'var(--bg-card)' }}>
         No opening legs found for this position
       </td>
     </tr>
@@ -35,7 +35,7 @@ function ExpandedLegs({ legs }) {
   return (
     <>
       <tr>
-        <td colSpan={11} style={{ background: 'var(--bg-card)', padding: '6px 32px 2px', fontSize: 10, fontWeight: 700, color: 'var(--text-faint)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+        <td colSpan={12} style={{ background: 'var(--bg-card)', padding: '6px 32px 2px', fontSize: 10, fontWeight: 700, color: 'var(--text-faint)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
           Opening legs ({legs.length})
         </td>
       </tr>
@@ -123,7 +123,8 @@ export default function TradesTable({ trades, onUpdate, onDelete }) {
             </div>
             <div className="trade-card-row2">
               <span>{t.date}</span>
-              {t.entry && <><span>·</span><span>${parseFloat(t.entry).toFixed(2)}</span></>}
+              {t.entry && <><span>·</span><span>Buy ${parseFloat(t.entry).toFixed(2)}</span></>}
+              {t.exit && <><span>→</span><span>Sell ${parseFloat(t.exit).toFixed(2)}</span></>}
               {t.quantity && <><span>·</span><span>{t.quantity} sh</span></>}
               {t.commission != null && <><span>·</span><span style={{ color: 'var(--red)' }}>-${parseFloat(t.commission).toFixed(2)} comm</span></>}
               {t.setup && <><span>·</span><span style={{ color: 'var(--text-muted)' }}>{t.setup}</span></>}
@@ -170,7 +171,8 @@ export default function TradesTable({ trades, onUpdate, onDelete }) {
               <th>Date</th>
               <th>Ticker</th>
               <th>Dir</th>
-              <th>Price</th>
+              <th>Buy</th>
+              <th>Sell</th>
               <th>Shares</th>
               <th>P&amp;L</th>
               <th>Comm.</th>
@@ -183,7 +185,7 @@ export default function TradesTable({ trades, onUpdate, onDelete }) {
           </thead>
           <tbody>
             {filtered.length === 0 && (
-              <tr><td colSpan={14} style={{ textAlign: 'center', color: 'var(--text-faint)', padding: 40 }}>No closed trades yet</td></tr>
+              <tr><td colSpan={15} style={{ textAlign: 'center', color: 'var(--text-faint)', padding: 40 }}>No closed trades yet</td></tr>
             )}
             {filtered.map(t => {
               const isOpen = expanded.has(t.id);
@@ -205,6 +207,7 @@ export default function TradesTable({ trades, onUpdate, onDelete }) {
                       </span>
                     </td>
                     <td style={{ fontVariantNumeric: 'tabular-nums' }}>{t.entry ? `$${parseFloat(t.entry).toFixed(2)}` : '—'}</td>
+                    <td style={{ fontVariantNumeric: 'tabular-nums', color: t.exit ? 'var(--text)' : 'var(--text-faint)' }}>{t.exit ? `$${parseFloat(t.exit).toFixed(2)}` : '—'}</td>
                     <td style={{ fontVariantNumeric: 'tabular-nums' }}>{t.quantity ?? '—'}</td>
                     <td style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: pnlColor(t.pnl) }}>
                       <span className="amount">{fmt(t.pnl)}</span>
