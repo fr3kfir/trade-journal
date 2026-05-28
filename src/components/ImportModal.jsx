@@ -31,25 +31,51 @@ function parseIBKR(text) {
       const date = dateRaw.split(',')[0].split(' ')[0].replace(/\//g, '-');
       const qty = parseFloat(row['quantity'] || '0');
       const price = parseFloat(row['t__price'] || row['price'] || row['t_price'] || '0');
-      const proceeds = parseFloat(row['proceeds'] || '0');
-      const comm = parseFloat(row['comm_fee'] || row['commission'] || '0');
+      const comm = Math.abs(parseFloat(row['comm_fee'] || row['commission'] || '0'));
       const realizedPL = parseFloat(row['realized_p_l'] || row['realized_pl'] || '0');
       const code = row['code'] || '';
+      const isClose = code.includes('C');
+      const isOpen = code.includes('O') || !isClose;
 
       if (!symbol || !date || qty === 0) continue;
+
+      // Determine direction and entry/exit based on open/close and buy/sell direction
+      // Close trade: qty<0 = SELL (close long), qty>0 = BUY (cover short)
+      // Open trade:  qty>0 = BUY (open long), qty<0 = SELL (open short)
+      let direction, entry, exit, pnl;
+      if (isClose) {
+        direction = qty < 0 ? 'L' : 'S';
+        exit = price || null;
+        pnl = realizedPL || null;
+        // entry = exit ± (pnl + comm) / qty
+        const absQty = Math.abs(qty);
+        if (exit && absQty) {
+          const gross = (pnl || 0) + comm;
+          entry = direction === 'L'
+            ? Math.round((exit - gross / absQty) * 10000) / 10000
+            : Math.round((exit + gross / absQty) * 10000) / 10000;
+        } else {
+          entry = null;
+        }
+      } else {
+        direction = qty > 0 ? 'L' : 'S';
+        entry = price || null;
+        exit = null;
+        pnl = null;
+      }
 
       trades.push({
         id: `ibkr-${symbol}-${date}-${qty}-${price}`.replace(/\s/g, ''),
         ticker: symbol.toUpperCase(),
         date,
-        direction: qty > 0 ? 'L' : 'S',
+        direction,
         quantity: Math.abs(qty),
-        entry: price || null,
-        exit: null,
+        entry,
+        exit,
         stop: null,
-        pnl: realizedPL || null,
+        pnl,
         commission: comm || null,
-        open_close: code.includes('O') ? 'Open' : code.includes('C') ? 'Close' : '',
+        open_close: isClose ? 'Close' : 'Open',
         notes: 'IBKR import',
       });
     }
@@ -71,15 +97,30 @@ function parseIBKR(text) {
         const qty = parseFloat(row['quantity'] || '0');
         const price = parseFloat(row['tradeprice'] || row['price'] || '0');
         const pnl = parseFloat(row['netcash'] || row['realized_p_l'] || '0');
+        const code2 = row['code'] || row['open_close'] || '';
+        const isClose2 = code2.toLowerCase().includes('c') || code2.toLowerCase().includes('close');
         if (!symbol || !date) continue;
+        let entry2, exit2, dir2;
+        if (isClose2) {
+          dir2 = qty < 0 ? 'L' : 'S';
+          exit2 = price || null;
+          const absQty = Math.abs(qty);
+          entry2 = exit2 && absQty
+            ? Math.round((dir2 === 'L' ? exit2 - pnl / absQty : exit2 + pnl / absQty) * 10000) / 10000
+            : null;
+        } else {
+          dir2 = qty > 0 ? 'L' : 'S';
+          entry2 = price || null;
+          exit2 = null;
+        }
         trades.push({
           id: `ibkr-${symbol}-${date}-${qty}-${price}`.replace(/\s/g, ''),
           ticker: symbol.toUpperCase(),
           date,
-          direction: qty > 0 ? 'L' : 'S',
+          direction: dir2,
           quantity: Math.abs(qty),
-          entry: price || null,
-          exit: null,
+          entry: entry2,
+          exit: exit2,
           stop: null,
           pnl: pnl || null,
           notes: 'IBKR import',

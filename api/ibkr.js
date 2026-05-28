@@ -94,21 +94,39 @@ export default async function handler(req, res) {
       return d.split(';')[0].split(' ')[0];
     };
 
-    const trades = list.map(t => ({
-      id:         `ibkr-${t.tradeID || (t.symbol + t.dateTime + t.quantity)}`.replace(/[\s;,]/g, ''),
-      ticker:     t.symbol || '',
-      date:       formatDate(t.tradeDate || t.dateTime),
+    const trades = list.map(t => {
       // Closing a long = SELL, closing a short = BUY
-      direction:  t.buySell === 'SELL' ? 'L' : 'S',
-      quantity:   Math.abs(parseFloat(t.quantity) || 0),
-      entry:      parseFloat(t.tradePrice) || null,
-      exit:       null,
-      stop:       null,
-      pnl:        parseFloat(t.fifoPnlRealized),
-      commission: Math.abs(parseFloat(t.ibCommission) || 0),
-      open_close: t.openCloseIndicator || '',
-      notes:      'IBKR import',
-    }));
+      const isLong   = t.buySell === 'SELL';
+      const exit     = parseFloat(t.tradePrice) || null;
+      const pnl      = parseFloat(t.fifoPnlRealized);
+      const comm     = Math.abs(parseFloat(t.ibCommission) || 0);
+      const qty      = Math.abs(parseFloat(t.quantity) || 0);
+
+      // Calculate entry from: pnl = (exit - entry) * qty - comm  (long)
+      //                        pnl = (entry - exit) * qty - comm  (short)
+      let entry = null;
+      if (exit && qty) {
+        const gross = pnl + comm;
+        entry = isLong
+          ? Math.round((exit - gross / qty) * 10000) / 10000
+          : Math.round((exit + gross / qty) * 10000) / 10000;
+      }
+
+      return {
+        id:         `ibkr-${t.tradeID || (t.symbol + t.dateTime + t.quantity)}`.replace(/[\s;,]/g, ''),
+        ticker:     t.symbol || '',
+        date:       formatDate(t.tradeDate || t.dateTime),
+        direction:  isLong ? 'L' : 'S',
+        quantity:   qty,
+        entry,
+        exit,
+        stop:       null,
+        pnl,
+        commission: comm,
+        open_close: t.openCloseIndicator || '',
+        notes:      'IBKR import',
+      };
+    });
 
     return res.status(200).json({ trades, count: trades.length });
 
