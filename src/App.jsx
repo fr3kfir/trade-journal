@@ -17,6 +17,7 @@ import Learning from './components/Learning';
 import Routine from './components/Routine';
 import TaxReport from './components/TaxReport';
 import TradeReview from './components/TradeReview';
+import TradeHighlights from './components/TradeHighlights';
 import CalendarView from './components/CalendarView';
 import SettingsModal from './components/SettingsModal';
 
@@ -168,7 +169,8 @@ export default function App() {
 
   const PAGE_TITLES = {
     dashboard: 'Dashboard', trades: 'Trade Log', portfolio: 'Portfolio',
-    stats: 'Statistics', calendar: 'Calendar', review: 'Trade Review', journal: 'Journal', survey: 'Daily Check-in',
+    stats: 'Statistics', calendar: 'Calendar', review: 'Trade Review', highlights: 'Trade Highlights',
+    journal: 'Journal', survey: 'Daily Check-in',
     scenarios: 'If / Then', learning: 'Learning', routine: 'Daily Routine',
     tax: 'Tax Report',
   };
@@ -285,7 +287,8 @@ export default function App() {
           {section === 'learning'  && <Learning />}
           {section === 'routine'   && <Routine />}
           {section === 'tax'       && <TaxReport />}
-          {section === 'review'    && <TradeReview trades={trades} onUpdate={updateTrade} />}
+          {section === 'review'     && <TradeReview trades={trades} onUpdate={updateTrade} />}
+          {section === 'highlights' && <TradeHighlights trades={trades} onUpdate={updateTrade} />}
 
         </main>
       </div>

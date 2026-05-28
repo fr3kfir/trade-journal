@@ -1,10 +1,12 @@
 import { useState, useRef, useCallback } from 'react';
-import { ImagePlus, X, Clipboard } from 'lucide-react';
+import { ImagePlus, X, Clipboard, Star } from 'lucide-react';
 
 export default function TradeNotesModal({ trade, onSave, onClose }) {
   const [notes, setNotes] = useState(trade.notes || '');
   const [images, setImages] = useState(trade.chart_images || []);
   const [dragging, setDragging] = useState(false);
+  const [highlightType, setHighlightType] = useState(trade.highlight_type || null);
+  const [lessonLearned, setLessonLearned] = useState(trade.lesson_learned || '');
   const pasteZoneRef = useRef(null);
 
   const addImage = useCallback((file) => {
@@ -41,7 +43,7 @@ export default function TradeNotesModal({ trade, onSave, onClose }) {
   const removeImage = (idx) => setImages(prev => prev.filter((_, i) => i !== idx));
 
   const handleSave = () => {
-    onSave({ notes, chart_images: images });
+    onSave({ notes, chart_images: images, highlight_type: highlightType, lesson_learned: lessonLearned });
     onClose();
   };
 
@@ -61,6 +63,51 @@ export default function TradeNotesModal({ trade, onSave, onClose }) {
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-faint)', cursor: 'pointer', fontSize: 20, lineHeight: 1 }}>×</button>
         </div>
+
+        {/* Highlight type selector */}
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ fontSize: 11, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 8 }}>
+            <Star size={11} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+            סיווג עסקה
+          </label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {[
+              { k: null,    label: 'רגילה',         bg: 'var(--bg-card)',              color: 'var(--text-muted)' },
+              { k: 'best',  label: '⭐ עסקה מצוינת', bg: 'rgba(52,211,153,0.12)',       color: 'var(--green)' },
+              { k: 'worst', label: '⚠ עסקה גרועה',  bg: 'rgba(248,113,113,0.12)',      color: 'var(--red)' },
+            ].map(({ k, label, bg, color }) => (
+              <button
+                key={String(k)}
+                type="button"
+                onClick={() => setHighlightType(k)}
+                style={{
+                  fontSize: 12, padding: '6px 12px', borderRadius: 8, border: '1.5px solid',
+                  cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, transition: 'all 0.12s',
+                  background: highlightType === k ? bg : 'transparent',
+                  color: highlightType === k ? color : 'var(--text-faint)',
+                  borderColor: highlightType === k ? color : 'var(--border)',
+                }}
+              >{label}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* Lesson learned (shown when highlight type is set) */}
+        {highlightType && (
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: 11, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 6 }}>
+              לקח / מה למדתי
+            </label>
+            <textarea
+              className="input"
+              rows={3}
+              value={lessonLearned}
+              onChange={e => setLessonLearned(e.target.value)}
+              placeholder={highlightType === 'best' ? 'מה עבד טוב? מה חזרת על עצמך שהצליח?' : 'מה הטעות? מה היית עושה אחרת?'}
+              style={{ resize: 'vertical', width: '100%' }}
+            />
+          </div>
+        )}
 
         {/* Notes textarea */}
         <div style={{ marginBottom: 16 }}>

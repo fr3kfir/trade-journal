@@ -156,6 +156,21 @@ export default function TradesTable({ trades, onUpdate, onDelete }) {
               <button className="btn btn-ghost" style={{ flex: 1, padding: '5px', fontSize: 12, justifyContent: 'center', color: (t.notes || t.chart_images?.length) ? 'var(--navy)' : undefined }} onClick={() => setNotes(t)}>
                 <StickyNote size={13} style={{ marginRight: 4 }} />Notes{t.chart_images?.length ? ` (${t.chart_images.length})` : ''}
               </button>
+              <button
+                style={{
+                  padding: '5px 10px', fontSize: 13, justifyContent: 'center', borderRadius: 8, border: '1px solid',
+                  cursor: 'pointer', fontFamily: 'inherit',
+                  background: t.highlight_type === 'best' ? 'rgba(52,211,153,0.12)' : t.highlight_type === 'worst' ? 'rgba(248,113,113,0.12)' : 'transparent',
+                  color: t.highlight_type === 'best' ? 'var(--green)' : t.highlight_type === 'worst' ? 'var(--red)' : 'var(--text-faint)',
+                  borderColor: t.highlight_type === 'best' ? 'var(--green)' : t.highlight_type === 'worst' ? 'var(--red)' : 'var(--border)',
+                }}
+                onClick={() => {
+                  const next = !t.highlight_type ? 'best' : t.highlight_type === 'best' ? 'worst' : null;
+                  onUpdate(t.id, { highlight_type: next });
+                }}
+              >
+                {t.highlight_type === 'best' ? '⭐' : t.highlight_type === 'worst' ? '⚠' : '☆'}
+              </button>
               <button className="btn btn-danger" style={{ flex: 1, padding: '5px', fontSize: 12, justifyContent: 'center' }} onClick={() => setConfirm(t.id)}>Delete</button>
             </div>
           </div>
@@ -237,6 +252,22 @@ export default function TradesTable({ trades, onUpdate, onDelete }) {
                       <button className="btn btn-ghost" style={{ padding: '3px 9px', fontSize: 11, marginRight: 4, color: (t.notes || t.chart_images?.length) ? 'var(--navy)' : undefined }} onClick={() => setNotes(t)} title="Notes & Charts">
                         <StickyNote size={12} />
                         {t.chart_images?.length ? <span style={{ fontSize: 10, marginLeft: 2 }}>{t.chart_images.length}</span> : null}
+                      </button>
+                      <button
+                        title={!t.highlight_type ? 'סמן כעסקה מצוינת' : t.highlight_type === 'best' ? 'עסקה מצוינת — לחץ לסמן כגרועה' : 'עסקה גרועה — לחץ להסיר'}
+                        style={{
+                          padding: '3px 8px', fontSize: 12, marginRight: 4, borderRadius: 6, border: '1px solid',
+                          cursor: 'pointer', fontFamily: 'inherit',
+                          background: t.highlight_type === 'best' ? 'rgba(52,211,153,0.12)' : t.highlight_type === 'worst' ? 'rgba(248,113,113,0.12)' : 'transparent',
+                          color: t.highlight_type === 'best' ? 'var(--green)' : t.highlight_type === 'worst' ? 'var(--red)' : 'var(--text-faint)',
+                          borderColor: t.highlight_type === 'best' ? 'var(--green)' : t.highlight_type === 'worst' ? 'var(--red)' : 'var(--border)',
+                        }}
+                        onClick={() => {
+                          const next = !t.highlight_type ? 'best' : t.highlight_type === 'best' ? 'worst' : null;
+                          onUpdate(t.id, { highlight_type: next });
+                        }}
+                      >
+                        {t.highlight_type === 'best' ? '⭐' : t.highlight_type === 'worst' ? '⚠' : '☆'}
                       </button>
                       <button className="btn btn-danger" style={{ padding: '3px 9px', fontSize: 11 }} onClick={() => setConfirm(t.id)}>Del</button>
                     </td>
