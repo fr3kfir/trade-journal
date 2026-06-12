@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
-import { StickyNote, ChevronDown, ChevronUp, ImageOff, Search } from 'lucide-react';
+import { StickyNote, ChevronDown, ChevronUp, ImageOff, Search, Play } from 'lucide-react';
 import TradeNotesModal from './TradeNotesModal';
+import TradePlayback from './TradePlayback';
 import { STAGES } from './ChartLibrary';
 
 function normalizeImages(raw) {
@@ -33,7 +34,7 @@ function fmt(v) {
   return `${v >= 0 ? '+' : ''}$${Math.abs(parseFloat(v)).toFixed(2)}`;
 }
 
-function TradeCard({ trade, onUpdate }) {
+function TradeCard({ trade, onUpdate, onPlayback }) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const hasImages = trade.chart_images?.length > 0;
@@ -101,9 +102,23 @@ function TradeCard({ trade, onUpdate }) {
         {/* Right: indicators + chevron */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           {hasImages && (
-            <span style={{ fontSize: 11, color: 'var(--navy)', background: 'rgba(37,99,235,0.1)', padding: '2px 7px', borderRadius: 20, fontWeight: 600 }}>
-              {trade.chart_images.length} 📸
-            </span>
+            <>
+              <span style={{ fontSize: 11, color: 'var(--navy)', background: 'rgba(37,99,235,0.1)', padding: '2px 7px', borderRadius: 20, fontWeight: 600 }}>
+                {trade.chart_images.length} 📸
+              </span>
+              <button
+                onClick={e => { e.stopPropagation(); onPlayback(trade); }}
+                title="Playback"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 4,
+                  fontSize: 11, fontWeight: 600, padding: '3px 10px',
+                  borderRadius: 20, border: 'none', cursor: 'pointer',
+                  background: '#18181b', color: '#f8fafc', fontFamily: 'inherit',
+                }}
+              >
+                <Play size={10} fill="#f8fafc" /> Playback
+              </button>
+            </>
           )}
           {expanded ? <ChevronUp size={15} color="var(--text-faint)" /> : <ChevronDown size={15} color="var(--text-faint)" />}
         </div>
@@ -148,8 +163,8 @@ function TradeCard({ trade, onUpdate }) {
             </div>
           )}
 
-          {/* Edit button */}
-          <div>
+          {/* Actions */}
+          <div style={{ display: 'flex', gap: 8 }}>
             <button
               className="btn btn-ghost"
               style={{ fontSize: 12, padding: '5px 14px' }}
@@ -157,6 +172,18 @@ function TradeCard({ trade, onUpdate }) {
             >
               ✎ Edit Notes & Charts
             </button>
+            {hasImages && (
+              <button
+                style={{
+                  fontSize: 12, padding: '5px 14px', borderRadius: 8, border: 'none',
+                  cursor: 'pointer', background: '#18181b', color: '#f8fafc',
+                  fontFamily: 'inherit', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
+                }}
+                onClick={() => onPlayback(trade)}
+              >
+                <Play size={11} fill="#f8fafc" /> Playback
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -172,10 +199,12 @@ function TradeCard({ trade, onUpdate }) {
   );
 }
 
+
 export default function TradeReview({ trades, onUpdate }) {
   const [search, setSearch]     = useState('');
   const [filter, setFilter]     = useState('all'); // all | notes | charts | both
   const [sortBy, setSortBy]     = useState('date'); // date | ticker | pnl
+  const [playbackTrade, setPlaybackTrade] = useState(null);
 
   const reviewed = useMemo(() => {
     return trades
@@ -279,9 +308,13 @@ export default function TradeReview({ trades, onUpdate }) {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {reviewed.map(t => (
-            <TradeCard key={t.id} trade={t} onUpdate={onUpdate} />
+            <TradeCard key={t.id} trade={t} onUpdate={onUpdate} onPlayback={setPlaybackTrade} />
           ))}
         </div>
+      )}
+
+      {playbackTrade && (
+        <TradePlayback trade={playbackTrade} onClose={() => setPlaybackTrade(null)} />
       )}
     </div>
   );
