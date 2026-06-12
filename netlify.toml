@@ -4,6 +4,7 @@
 
 [functions]
   node_bundler = "esbuild"
+  included_files = ["node_modules/@sparticuz/chromium/bin/**"]
 
 [functions.ibkr]
   timeout = 26
@@ -13,6 +14,9 @@
 
 [functions.chart]
   timeout = 15
+
+[functions.tv-screenshot]
+  timeout = 26
 
 [[redirects]]
   from = "/api/*"
