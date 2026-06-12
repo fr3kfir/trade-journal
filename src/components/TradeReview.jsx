@@ -1,6 +1,26 @@
 import { useState, useMemo } from 'react';
 import { StickyNote, ChevronDown, ChevronUp, ImageOff, Search } from 'lucide-react';
 import TradeNotesModal from './TradeNotesModal';
+import { STAGES } from './ChartLibrary';
+
+function normalizeImages(raw) {
+  return (raw || []).map(img =>
+    typeof img === 'string' ? { src: img, stage: 'setup' } : img
+  );
+}
+
+function StageBadge({ stageKey }) {
+  const stage = STAGES.find(s => s.key === stageKey) || STAGES[0];
+  return (
+    <span style={{
+      fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 10,
+      background: stage.color + '22', color: stage.color,
+      letterSpacing: '0.05em', textTransform: 'uppercase',
+    }}>
+      {stage.label}
+    </span>
+  );
+}
 
 function pnlColor(v) {
   if (v > 0) return 'var(--green)';
@@ -108,14 +128,22 @@ function TradeCard({ trade, onUpdate }) {
                 Charts ({trade.chart_images.length})
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {trade.chart_images.map((src, i) => (
-                  <img
-                    key={i}
-                    src={src}
-                    alt={`${trade.ticker} chart ${i + 1}`}
-                    style={{ width: '100%', borderRadius: 8, border: '1px solid var(--border)', display: 'block', maxHeight: 500, objectFit: 'contain', background: '#000' }}
-                  />
-                ))}
+                {normalizeImages(trade.chart_images).map((img, i) => {
+                  const stage = STAGES.find(s => s.key === img.stage) || STAGES[0];
+                  return (
+                    <div key={i} style={{ borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                      <div style={{ height: 2, background: stage.color }} />
+                      <div style={{ padding: '4px 10px', background: 'var(--bg-card)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <StageBadge stageKey={img.stage} />
+                      </div>
+                      <img
+                        src={img.src}
+                        alt={`${trade.ticker} chart ${i + 1}`}
+                        style={{ width: '100%', display: 'block', maxHeight: 500, objectFit: 'contain', background: '#000' }}
+                      />
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

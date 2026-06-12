@@ -1,16 +1,30 @@
 import { useState, useRef, useCallback } from 'react';
 import { ImagePlus, X, Clipboard } from 'lucide-react';
 
+const STAGES = [
+  { key: 'setup', label: 'Setup',  color: '#6366f1' },
+  { key: 'entry', label: 'Entry',  color: '#0ea5e9' },
+  { key: 'add',   label: 'Add',    color: '#f59e0b' },
+  { key: 'exit',  label: 'Exit',   color: '#ef4444' },
+  { key: 'post',  label: 'Post',   color: '#8b5cf6' },
+];
+
+function normalizeImages(raw) {
+  return (raw || []).map(img =>
+    typeof img === 'string' ? { src: img, stage: 'setup' } : img
+  );
+}
+
 export default function TradeNotesModal({ trade, onSave, onClose }) {
   const [notes, setNotes] = useState(trade.notes || '');
-  const [images, setImages] = useState(trade.chart_images || []);
+  const [images, setImages] = useState(() => normalizeImages(trade.chart_images));
   const [dragging, setDragging] = useState(false);
   const pasteZoneRef = useRef(null);
 
   const addImage = useCallback((file) => {
     if (!file || !file.type.startsWith('image/')) return;
     const reader = new FileReader();
-    reader.onload = (e) => setImages(prev => [...prev, e.target.result]);
+    reader.onload = (e) => setImages(prev => [...prev, { src: e.target.result, stage: 'setup' }]);
     reader.readAsDataURL(file);
   }, []);
 
@@ -29,8 +43,7 @@ export default function TradeNotesModal({ trade, onSave, onClose }) {
   const handleDrop = useCallback((e) => {
     e.preventDefault();
     setDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    addImage(file);
+    addImage(e.dataTransfer.files?.[0]);
   }, [addImage]);
 
   const handleFileInput = (e) => {
@@ -39,6 +52,7 @@ export default function TradeNotesModal({ trade, onSave, onClose }) {
   };
 
   const removeImage = (idx) => setImages(prev => prev.filter((_, i) => i !== idx));
+  const setStage = (idx, stage) => setImages(prev => prev.map((img, i) => i === idx ? { ...img, stage } : img));
 
   const handleSave = () => {
     onSave({ notes, chart_images: images });
@@ -105,29 +119,57 @@ export default function TradeNotesModal({ trade, onSave, onClose }) {
           </div>
         </div>
 
-        {/* Images grid */}
+        {/* Images */}
         {images.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
-            {images.map((src, idx) => (
-              <div key={idx} style={{ position: 'relative', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)' }}>
-                <img
-                  src={src}
-                  alt={`chart ${idx + 1}`}
-                  style={{ width: '100%', display: 'block', maxHeight: 400, objectFit: 'contain', background: '#000' }}
-                />
-                <button
-                  onClick={() => removeImage(idx)}
-                  style={{
-                    position: 'absolute', top: 8, right: 8,
-                    background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%',
-                    width: 28, height: 28, cursor: 'pointer', color: '#fff',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            ))}
+            {images.map((img, idx) => {
+              const stage = STAGES.find(s => s.key === img.stage) || STAGES[0];
+              return (
+                <div key={idx} style={{ borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)', position: 'relative' }}>
+                  {/* Stage selector bar */}
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px',
+                    background: 'var(--bg-card)', borderBottom: '1px solid var(--border)',
+                  }}>
+                    <span style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 4 }}>שלב:</span>
+                    {STAGES.map(s => (
+                      <button
+                        key={s.key}
+                        onClick={() => setStage(idx, s.key)}
+                        style={{
+                          fontSize: 10, padding: '2px 9px', borderRadius: 10, border: 'none',
+                          cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
+                          background: img.stage === s.key ? s.color : 'var(--bg-panel)',
+                          color: img.stage === s.key ? '#fff' : 'var(--text-faint)',
+                          transition: 'all 0.1s',
+                        }}
+                      >
+                        {s.label}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => removeImage(idx)}
+                      style={{
+                        marginLeft: 'auto', background: 'none', border: 'none',
+                        color: 'var(--text-faint)', cursor: 'pointer', display: 'flex',
+                        alignItems: 'center', padding: 2,
+                      }}
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+
+                  {/* Stage color strip */}
+                  <div style={{ height: 2, background: stage.color }} />
+
+                  <img
+                    src={img.src}
+                    alt={`chart ${idx + 1}`}
+                    style={{ width: '100%', display: 'block', maxHeight: 400, objectFit: 'contain', background: '#000' }}
+                  />
+                </div>
+              );
+            })}
           </div>
         )}
 
