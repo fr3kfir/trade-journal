@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { X, ChevronLeft, ChevronRight, Play } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, TrendingUp } from 'lucide-react';
 import { STAGES } from './ChartLibrary';
+import TradingViewChart from './TradingViewChart';
 
 const STAGE_ORDER = ['setup', 'entry', 'add', 'exit', 'post'];
 
@@ -26,18 +27,21 @@ export default function TradePlayback({ trade, onClose }) {
   const images = sortByStage(normalizeImages(trade.chart_images));
   const [idx, setIdx] = useState(0);
 
+  const [showLiveChart, setShowLiveChart] = useState(false);
+
   const prev = useCallback(() => setIdx(i => Math.max(0, i - 1)), []);
   const next = useCallback(() => setIdx(i => Math.min(images.length - 1, i + 1)), [images.length]);
 
   useEffect(() => {
     const handler = (e) => {
-      if (e.key === 'Escape') onClose();
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') prev();
-      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next();
+      if (e.key === 'Escape' && !showLiveChart) onClose();
+      if (e.key === 'Escape' && showLiveChart) setShowLiveChart(false);
+      if (!showLiveChart && (e.key === 'ArrowLeft' || e.key === 'ArrowUp')) prev();
+      if (!showLiveChart && (e.key === 'ArrowRight' || e.key === 'ArrowDown')) next();
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [onClose, prev, next]);
+  }, [onClose, prev, next, showLiveChart]);
 
   if (!images.length) return null;
 
@@ -112,9 +116,25 @@ export default function TradePlayback({ trade, onClose }) {
         )}
         <span style={{ fontSize: 12, color: '#475569' }}>{trade.date}</span>
 
-        {/* Counter */}
-        <div style={{ marginLeft: 'auto', fontSize: 12, color: '#475569', fontVariantNumeric: 'tabular-nums' }}>
-          {idx + 1} / {images.length}
+        {/* Counter + Live Chart toggle */}
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 12, color: '#475569', fontVariantNumeric: 'tabular-nums' }}>
+            {idx + 1} / {images.length}
+          </span>
+          <button
+            onClick={() => setShowLiveChart(v => !v)}
+            title="Live TradingView chart"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 5,
+              fontSize: 11, fontWeight: 600, padding: '4px 11px', borderRadius: 6,
+              border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+              background: showLiveChart ? '#1d4ed8' : 'rgba(255,255,255,0.08)',
+              color: showLiveChart ? '#fff' : '#94a3b8',
+              transition: 'all 0.15s',
+            }}
+          >
+            <TrendingUp size={12} /> Live
+          </button>
         </div>
 
         <button
@@ -187,8 +207,20 @@ export default function TradePlayback({ trade, onClose }) {
         </button>
       </div>
 
+      {/* Live TradingView panel */}
+      {showLiveChart && (
+        <div style={{
+          padding: '0 24px 12px', flexShrink: 0,
+          borderTop: '1px solid rgba(255,255,255,0.06)',
+        }}>
+          <div style={{ marginTop: 12 }}>
+            <TradingViewChart ticker={trade.ticker} date={trade.date} theme="dark" />
+          </div>
+        </div>
+      )}
+
       {/* Notes */}
-      {trade.notes?.trim() && (
+      {trade.notes?.trim() && !showLiveChart && (
         <div style={{
           padding: '10px 80px', flexShrink: 0,
           fontSize: 13, color: '#64748b', lineHeight: 1.6,
