@@ -288,7 +288,7 @@ export default function App() {
           {section === 'routine'   && <Routine />}
           {section === 'tax'       && <TaxReport />}
           {section === 'review'    && <TradeReview trades={trades} onUpdate={updateTrade} />}
-          {section === 'charts'    && <ChartLibrary trades={trades} />}
+          {section === 'charts'    && <ChartLibrary trades={trades} onUpdate={updateTrade} />}
 
         </main>
       </div>
