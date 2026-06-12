@@ -18,6 +18,7 @@ import Routine from './components/Routine';
 import TaxReport from './components/TaxReport';
 import TradeReview from './components/TradeReview';
 import CalendarView from './components/CalendarView';
+import ChartLibrary from './components/ChartLibrary';
 import SettingsModal from './components/SettingsModal';
 
 const TF_RANGES = ['1W', '1M', '3M', 'YTD', 'ALL'];
@@ -168,7 +169,8 @@ export default function App() {
 
   const PAGE_TITLES = {
     dashboard: 'Dashboard', trades: 'Trade Log', portfolio: 'Portfolio',
-    stats: 'Statistics', calendar: 'Calendar', review: 'Trade Review', journal: 'Journal', survey: 'Daily Check-in',
+    stats: 'Statistics', calendar: 'Calendar', review: 'Trade Review', charts: 'Chart Library',
+    journal: 'Journal', survey: 'Daily Check-in',
     scenarios: 'If / Then', learning: 'Learning', routine: 'Daily Routine',
     tax: 'Tax Report',
   };
@@ -286,6 +288,7 @@ export default function App() {
           {section === 'routine'   && <Routine />}
           {section === 'tax'       && <TaxReport />}
           {section === 'review'    && <TradeReview trades={trades} onUpdate={updateTrade} />}
+          {section === 'charts'    && <ChartLibrary trades={trades} />}
 
         </main>
       </div>
