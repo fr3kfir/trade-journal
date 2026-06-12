@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import { ImagePlus, X, Clipboard, TrendingUp } from 'lucide-react';
+import { ImagePlus, X, Clipboard, TrendingUp, Loader } from 'lucide-react';
 import TradingViewChart from './TradingViewChart';
 
 const STAGES = [
@@ -22,7 +22,21 @@ export default function TradeNotesModal({ trade, onSave, onClose }) {
   const [images, setImages] = useState(() => normalizeImages(trade.chart_images));
   const [dragging, setDragging] = useState(false);
   const [pendingStage, setPendingStage] = useState('setup');
+  const [autoCapturing, setAutoCapturing] = useState(false);
   const pasteZoneRef = useRef(null);
+
+  const handleAutoCapture = useCallback(async () => {
+    if (autoCapturing) return;
+    setAutoCapturing(true);
+    try {
+      const res = await fetch(`/api/tv-screenshot?ticker=${encodeURIComponent(trade.ticker)}&tf=D`);
+      const data = await res.json();
+      if (data.src) {
+        setImages(prev => [...prev, { src: data.src, stage: pendingStage }]);
+      }
+    } catch {}
+    setAutoCapturing(false);
+  }, [trade.ticker, pendingStage, autoCapturing]);
 
   const addImage = useCallback((file) => {
     if (!file || !file.type.startsWith('image/')) return;
@@ -169,6 +183,20 @@ export default function TradeNotesModal({ trade, onSave, onClose }) {
                 >
                   <TrendingUp size={14} /> פתח TradingView
                 </button>
+                <button
+                  onClick={handleAutoCapture}
+                  disabled={autoCapturing}
+                  style={{
+                    color: autoCapturing ? 'var(--text-faint)' : '#7c3aed', cursor: autoCapturing ? 'default' : 'pointer',
+                    fontWeight: 500, background: 'none', border: 'none', fontFamily: 'inherit', fontSize: 13,
+                    display: 'flex', alignItems: 'center', gap: 4,
+                  }}
+                >
+                  {autoCapturing
+                    ? <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> מצלם...</>
+                    : <><TrendingUp size={14} /> צלם TV אוטו</>}
+                </button>
+                <style>{`@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}`}</style>
               </div>
             </div>
 

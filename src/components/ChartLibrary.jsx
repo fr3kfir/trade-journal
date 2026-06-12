@@ -174,7 +174,7 @@ export default function ChartLibrary({ trades, onUpdate }) {
       const trade = tradesWithoutCharts[i];
       setAutoFetchProgress({ done: i, total: tradesWithoutCharts.length, current: trade.ticker });
       try {
-        const res = await fetch(`/api/chart?ticker=${encodeURIComponent(trade.ticker)}&tf=d`);
+        const res = await fetch(`/api/tv-screenshot?ticker=${encodeURIComponent(trade.ticker)}&tf=D`);
         const data = await res.json();
         if (data.src) {
           onUpdate(trade.id, { chart_images: [{ src: data.src, stage: 'setup' }] });
