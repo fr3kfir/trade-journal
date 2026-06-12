@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { Images, ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { Images, ChevronLeft, ChevronRight, Search, Download, Loader } from 'lucide-react';
 
 export const STAGES = [
   { key: 'setup', label: 'Setup',  color: '#6366f1' },
@@ -151,7 +151,7 @@ function Lightbox({ items, startIndex, onClose }) {
   );
 }
 
-export default function ChartLibrary({ trades }) {
+export default function ChartLibrary({ trades, onUpdate }) {
   const [search, setSearch] = useState('');
   const [setupFilter, setSetupFilter] = useState('all');
   const [outcomeFilter, setOutcomeFilter] = useState('all');
@@ -159,6 +159,32 @@ export default function ChartLibrary({ trades }) {
   const [stageFilter, setStageFilter] = useState('all');
   const [lightboxItems, setLightboxItems] = useState(null);
   const [lightboxStart, setLightboxStart] = useState(0);
+  const [autoFetching, setAutoFetching] = useState(false);
+  const [autoFetchProgress, setAutoFetchProgress] = useState(null);
+
+  const tradesWithoutCharts = useMemo(() =>
+    trades.filter(t => t.pnl != null && t.ticker && !t.chart_images?.length),
+  [trades]);
+
+  const handleAutoFetch = useCallback(async () => {
+    if (!tradesWithoutCharts.length || autoFetching) return;
+    setAutoFetching(true);
+    setAutoFetchProgress({ done: 0, total: tradesWithoutCharts.length, current: '' });
+    for (let i = 0; i < tradesWithoutCharts.length; i++) {
+      const trade = tradesWithoutCharts[i];
+      setAutoFetchProgress({ done: i, total: tradesWithoutCharts.length, current: trade.ticker });
+      try {
+        const res = await fetch(`/api/chart?ticker=${encodeURIComponent(trade.ticker)}&tf=d`);
+        const data = await res.json();
+        if (data.src) {
+          onUpdate(trade.id, { chart_images: [{ src: data.src, stage: 'setup' }] });
+        }
+      } catch {}
+      await new Promise(r => setTimeout(r, 400));
+    }
+    setAutoFetching(false);
+    setAutoFetchProgress(null);
+  }, [tradesWithoutCharts, autoFetching, onUpdate]);
 
   // Flatten all chart images
   const allItems = useMemo(() => {
@@ -214,14 +240,38 @@ export default function ChartLibrary({ trades }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
       {/* Header */}
-      <div>
-        <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Images size={18} /> Chart Library
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Images size={18} /> Chart Library
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
+            {allItems.length} charts · {trades.filter(t => t.chart_images?.length).length} trades with images
+            {tradesWithoutCharts.length > 0 && (
+              <span style={{ color: 'var(--text-faint)' }}> · {tradesWithoutCharts.length} ללא גרף</span>
+            )}
+          </div>
         </div>
-        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
-          {allItems.length} charts · {trades.filter(t => t.chart_images?.length).length} trades with images
-        </div>
+        {tradesWithoutCharts.length > 0 && (
+          <button
+            onClick={handleAutoFetch}
+            disabled={autoFetching}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              fontSize: 12, fontWeight: 600, padding: '7px 14px',
+              borderRadius: 8, border: 'none', cursor: autoFetching ? 'default' : 'pointer',
+              background: autoFetching ? 'var(--bg-card)' : 'var(--navy)',
+              color: autoFetching ? 'var(--text-muted)' : '#fff',
+              fontFamily: 'inherit', transition: 'all 0.15s', flexShrink: 0,
+            }}
+          >
+            {autoFetching
+              ? <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> {autoFetchProgress?.current} ({autoFetchProgress?.done}/{autoFetchProgress?.total})</>
+              : <><Download size={13} /> Auto-fetch {tradesWithoutCharts.length} גרפים</>}
+          </button>
+        )}
       </div>
+      <style>{`@keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }`}</style>
 
       {/* Filters */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>

@@ -11,6 +11,9 @@
 [functions.tax-report]
   timeout = 60
 
+[functions.chart]
+  timeout = 15
+
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
