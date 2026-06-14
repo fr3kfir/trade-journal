@@ -161,6 +161,7 @@ export default function ChartLibrary({ trades, onUpdate }) {
   const [lightboxStart, setLightboxStart] = useState(0);
   const [autoFetching, setAutoFetching] = useState(false);
   const [autoFetchProgress, setAutoFetchProgress] = useState(null);
+  const [autoFetchResult, setAutoFetchResult] = useState(null);
 
   const tradesWithoutCharts = useMemo(() =>
     trades.filter(t => t.pnl != null && t.ticker && !t.chart_images?.length),
@@ -169,21 +170,30 @@ export default function ChartLibrary({ trades, onUpdate }) {
   const handleAutoFetch = useCallback(async () => {
     if (!tradesWithoutCharts.length || autoFetching) return;
     setAutoFetching(true);
+    setAutoFetchResult(null);
     setAutoFetchProgress({ done: 0, total: tradesWithoutCharts.length, current: '' });
+    let success = 0, failed = 0;
     for (let i = 0; i < tradesWithoutCharts.length; i++) {
       const trade = tradesWithoutCharts[i];
       setAutoFetchProgress({ done: i, total: tradesWithoutCharts.length, current: trade.ticker });
       try {
-        const res = await fetch(`/api/tv-screenshot?ticker=${encodeURIComponent(trade.ticker)}&tf=D`);
+        const res = await fetch(`/api/chart?ticker=${encodeURIComponent(trade.ticker)}&tf=d`);
         const data = await res.json();
         if (data.src) {
           onUpdate(trade.id, { chart_images: [{ src: data.src, stage: 'setup' }] });
+          success++;
+        } else {
+          failed++;
         }
-      } catch {}
-      await new Promise(r => setTimeout(r, 400));
+      } catch {
+        failed++;
+      }
+      await new Promise(r => setTimeout(r, 300));
     }
     setAutoFetching(false);
     setAutoFetchProgress(null);
+    setAutoFetchResult({ success, failed });
+    setTimeout(() => setAutoFetchResult(null), 6000);
   }, [tradesWithoutCharts, autoFetching, onUpdate]);
 
   // Flatten all chart images
@@ -252,6 +262,12 @@ export default function ChartLibrary({ trades, onUpdate }) {
             )}
           </div>
         </div>
+        {autoFetchResult && (
+          <div style={{ fontSize: 12, padding: '6px 12px', borderRadius: 8, background: 'var(--bg-card)', color: autoFetchResult.failed > 0 ? 'var(--text-muted)' : 'var(--green)' }}>
+            ✓ {autoFetchResult.success} גרפים נטענו
+            {autoFetchResult.failed > 0 && <span style={{ color: 'var(--red)' }}> · {autoFetchResult.failed} נכשלו</span>}
+          </div>
+        )}
         {tradesWithoutCharts.length > 0 && (
           <button
             onClick={handleAutoFetch}
