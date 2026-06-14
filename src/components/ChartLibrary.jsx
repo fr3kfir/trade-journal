@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Images, ChevronLeft, ChevronRight, Search, Download, Loader } from 'lucide-react';
 
 export const STAGES = [
@@ -162,6 +162,7 @@ export default function ChartLibrary({ trades, onUpdate }) {
   const [autoFetching, setAutoFetching] = useState(false);
   const [autoFetchProgress, setAutoFetchProgress] = useState(null);
   const [autoFetchResult, setAutoFetchResult] = useState(null);
+  const autoFetchedOnMount = useRef(false);
 
   const tradesWithoutCharts = useMemo(() =>
     trades.filter(t => t.pnl != null && t.ticker && !t.chart_images?.length),
@@ -195,6 +196,13 @@ export default function ChartLibrary({ trades, onUpdate }) {
     setAutoFetchResult({ success, failed });
     setTimeout(() => setAutoFetchResult(null), 6000);
   }, [tradesWithoutCharts, autoFetching, onUpdate]);
+
+  // Auto-trigger on first open if there are trades missing charts
+  useEffect(() => {
+    if (autoFetchedOnMount.current || !tradesWithoutCharts.length) return;
+    autoFetchedOnMount.current = true;
+    handleAutoFetch();
+  }, [tradesWithoutCharts.length, handleAutoFetch]);
 
   // Flatten all chart images
   const allItems = useMemo(() => {
