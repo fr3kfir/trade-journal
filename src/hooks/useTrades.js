@@ -12,7 +12,7 @@ function pushToServer(trades) {
 
 async function fetchTVScreenshot(ticker) {
   try {
-    const res = await fetch(`/api/tv-screenshot?ticker=${encodeURIComponent(ticker)}&tf=D`);
+    const res = await fetch(`/api/chart?ticker=${encodeURIComponent(ticker)}&tf=d`);
     const data = await res.json();
     return data.src || null;
   } catch {
@@ -38,7 +38,16 @@ export function useTrades() {
       .then(r => r.json())
       .then(d => {
         if (d.trades?.length) {
-          setTrades(d.trades);
+          // Merge: preserve locally-stored chart_images that the server doesn't have
+          const localById = new Map(local.map(t => [t.id, t]));
+          const merged = d.trades.map(st => {
+            const lt = localById.get(st.id);
+            if (lt?.chart_images?.length && !st.chart_images?.length) {
+              return { ...st, chart_images: lt.chart_images };
+            }
+            return st;
+          });
+          setTrades(merged);
         } else if (local.length) {
           pushToServer(local);
         }
