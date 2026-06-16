@@ -3,6 +3,28 @@ import { createChart, ColorType, CrosshairMode } from 'lightweight-charts';
 
 const cache = {};
 
+function findCandleForPrice(candles, price, mode) {
+  // mode: 'first' finds first candle where low <= price <= high
+  // mode: 'last' finds last candle where low <= price <= high
+  let result = null;
+  for (let i = 0; i < candles.length; i++) {
+    const c = candles[i];
+    if (c.low <= price && price <= c.high) {
+      result = c;
+      if (mode === 'first') break;
+    }
+  }
+  if (result) return result;
+  // Fallback: candle with closest close price
+  let best = null;
+  let bestDiff = Infinity;
+  for (const c of candles) {
+    const diff = Math.abs(c.close - price);
+    if (diff < bestDiff) { bestDiff = diff; best = c; }
+  }
+  return best;
+}
+
 async function fetchCandles(ticker, date) {
   const key = `${ticker}_${date}`;
   if (cache[key]) return cache[key];
@@ -117,6 +139,35 @@ export default function MiniChart({ trade, height = 160, theme = 'light' }) {
             axisLabelVisible: false,
             title: 'Stop',
           });
+        }
+
+        // Buy/sell markers
+        const markers = [];
+        const isLong = trade.direction === 'L';
+
+        if (!isNaN(entryPrice) && entryPrice > 0) {
+          const candle = findCandleForPrice(candles, entryPrice, 'first');
+          if (candle) {
+            markers.push(isLong
+              ? { time: candle.time, position: 'belowBar', color: '#22c55e', shape: 'arrowUp', text: 'B', size: 1 }
+              : { time: candle.time, position: 'aboveBar', color: '#ef4444', shape: 'arrowDown', text: 'S', size: 1 }
+            );
+          }
+        }
+
+        if (!isNaN(exitPrice) && exitPrice > 0) {
+          const candle = findCandleForPrice(candles, exitPrice, 'last');
+          if (candle) {
+            markers.push(isLong
+              ? { time: candle.time, position: 'aboveBar', color: '#ef4444', shape: 'arrowDown', text: 'S', size: 1 }
+              : { time: candle.time, position: 'belowBar', color: '#22c55e', shape: 'arrowUp', text: 'B', size: 1 }
+            );
+          }
+        }
+
+        if (markers.length > 0) {
+          markers.sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
+          series.setMarkers(markers);
         }
 
         // Fit content with some padding
