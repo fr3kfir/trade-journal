@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Images, ChevronLeft, ChevronRight, Search, Upload, ExternalLink } from 'lucide-react';
 import MiniChart from './MiniChart.jsx';
 
@@ -27,10 +27,35 @@ function tvSymbol(ticker) {
   return ticker.includes(':') ? ticker : `NASDAQ:${ticker}`;
 }
 
-function Lightbox({ trade, images, imgIndex, onClose, onPrev, onNext, theme }) {
+function Lightbox({ trade, images, imgIndex, onClose, onPrev, onNext, onPrevTrade, onNextTrade, hasPrevTrade, hasNextTrade, theme, tradeIndex, totalTrades }) {
   const pnl = trade.pnl != null ? parseFloat(trade.pnl) : null;
   const rVal = trade.r_value != null ? parseFloat(trade.r_value) : null;
   const [tab, setTab] = useState('chart'); // 'chart' | 'img'
+
+  // Keyboard navigation
+  useEffect(() => {
+    function handleKey(e) {
+      if (e.key === 'Escape') onClose();
+      else if (e.key === 'ArrowLeft')  { if (hasPrevTrade) onPrevTrade(); }
+      else if (e.key === 'ArrowRight') { if (hasNextTrade) onNextTrade(); }
+    }
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [onClose, onPrevTrade, onNextTrade, hasPrevTrade, hasNextTrade]);
+
+  const execScore = trade.execution_score != null ? parseInt(trade.execution_score, 10) : null;
+
+  const navBtnStyle = (enabled) => ({
+    fontSize: 12,
+    padding: '4px 10px',
+    borderRadius: 6,
+    border: 'none',
+    cursor: enabled ? 'pointer' : 'default',
+    background: enabled ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)',
+    color: enabled ? '#fff' : 'rgba(255,255,255,0.3)',
+    fontFamily: 'inherit',
+    transition: 'background 0.15s',
+  });
 
   return (
     <div
@@ -38,94 +63,184 @@ function Lightbox({ trade, images, imgIndex, onClose, onPrev, onNext, theme }) {
       onClick={e => e.target === e.currentTarget && onClose()}
       style={{ alignItems: 'center', justifyContent: 'center' }}
     >
-      <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 10, width: 'min(96vw, 1100px)' }}>
-        <button onClick={onClose} style={{ position: 'absolute', top: -36, right: 0, background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 26 }}>×</button>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: 'min(98vw, 1300px)' }}>
 
-        {/* Tabs */}
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <button onClick={() => setTab('chart')} style={{
-            fontSize: 12, padding: '5px 14px', borderRadius: 6, border: 'none', cursor: 'pointer',
-            background: tab === 'chart' ? 'var(--navy)' : 'rgba(255,255,255,0.12)',
-            color: '#fff', fontWeight: tab === 'chart' ? 700 : 400, fontFamily: 'inherit',
-          }}>📈 גרף היסטורי</button>
-          {images.length > 0 && (
-            <button onClick={() => setTab('img')} style={{
-              fontSize: 12, padding: '5px 14px', borderRadius: 6, border: 'none', cursor: 'pointer',
-              background: tab === 'img' ? 'var(--navy)' : 'rgba(255,255,255,0.12)',
-              color: '#fff', fontWeight: tab === 'img' ? 700 : 400, fontFamily: 'inherit',
-            }}>🖼 תמונות שמורות ({images.length})</button>
+        {/* Trade navigation bar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <button onClick={onPrevTrade} disabled={!hasPrevTrade} style={navBtnStyle(hasPrevTrade)}>← עסקה קודמת</button>
+          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>{tradeIndex + 1} / {totalTrades}</span>
+          <button onClick={onNextTrade} disabled={!hasNextTrade} style={navBtnStyle(hasNextTrade)}>עסקה הבאה →</button>
+          <span style={{ fontWeight: 700, fontSize: 15, color: '#fff', marginLeft: 8 }}>{trade.ticker}</span>
+          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginLeft: 4 }}>{trade.date}</span>
+          {trade.entry != null && (
+            <span style={{ fontSize: 12, color: '#22c55e', fontWeight: 600, marginLeft: 8 }}>
+              כניסה: ${parseFloat(trade.entry).toFixed(2)}
+            </span>
           )}
-          <a
-            href={`https://www.tradingview.com/chart/?symbol=${tvSymbol(trade.ticker)}`}
-            target="_blank" rel="noopener noreferrer"
-            style={{ marginLeft: 'auto', fontSize: 11, color: 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', gap: 4, textDecoration: 'none' }}
-          >
-            <ExternalLink size={11} /> TradingView
-          </a>
+          {trade.exit != null && (
+            <span style={{ fontSize: 12, color: '#ef4444', fontWeight: 600 }}>
+              יציאה: ${parseFloat(trade.exit).toFixed(2)}
+            </span>
+          )}
+          <button
+            onClick={onClose}
+            style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 22, lineHeight: 1, padding: '0 4px' }}
+          >×</button>
         </div>
 
-        {/* Chart or image */}
-        {tab === 'chart' ? (
-          <div style={{ borderRadius: 8, overflow: 'hidden', height: '62vh' }}>
-            <MiniChart trade={trade} height={window.innerHeight * 0.62} theme={theme} />
+        {/* Main content: left (chart) + right (details) */}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+
+          {/* Left panel */}
+          <div style={{ flex: '1.6 1 0', minWidth: 280, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {/* Tabs row */}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button onClick={() => setTab('chart')} style={{
+                fontSize: 12, padding: '5px 14px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                background: tab === 'chart' ? 'var(--navy)' : 'rgba(255,255,255,0.12)',
+                color: '#fff', fontWeight: tab === 'chart' ? 700 : 400, fontFamily: 'inherit',
+              }}>📈 גרף היסטורי</button>
+              {images.length > 0 && (
+                <button onClick={() => setTab('img')} style={{
+                  fontSize: 12, padding: '5px 14px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                  background: tab === 'img' ? 'var(--navy)' : 'rgba(255,255,255,0.12)',
+                  color: '#fff', fontWeight: tab === 'img' ? 700 : 400, fontFamily: 'inherit',
+                }}>🖼 תמונות שמורות ({images.length})</button>
+              )}
+              <a
+                href={`https://www.tradingview.com/chart/?symbol=${tvSymbol(trade.ticker)}`}
+                target="_blank" rel="noopener noreferrer"
+                style={{ marginLeft: 'auto', fontSize: 11, color: 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', gap: 4, textDecoration: 'none' }}
+              >
+                <ExternalLink size={11} /> TradingView
+              </a>
+            </div>
+
+            {/* Chart or image */}
+            {tab === 'chart' ? (
+              <div style={{ borderRadius: 8, overflow: 'hidden', height: '62vh' }}>
+                <MiniChart trade={trade} height={window.innerHeight * 0.62} theme={theme} />
+              </div>
+            ) : (
+              <div style={{ position: 'relative', textAlign: 'center' }}>
+                <img
+                  src={images[imgIndex]?.src}
+                  alt={`${trade.ticker}`}
+                  style={{ maxWidth: '100%', maxHeight: '62vh', objectFit: 'contain', borderRadius: 8 }}
+                />
+                {images.length > 1 && (
+                  <>
+                    <button onClick={onPrev} disabled={imgIndex === 0} style={{
+                      position: 'absolute', left: -48, top: '50%', transform: 'translateY(-50%)',
+                      background: imgIndex === 0 ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.6)',
+                      border: 'none', color: '#fff', borderRadius: '50%', width: 38, height: 38,
+                      cursor: imgIndex === 0 ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}><ChevronLeft size={18} /></button>
+                    <button onClick={onNext} disabled={imgIndex === images.length - 1} style={{
+                      position: 'absolute', right: -48, top: '50%', transform: 'translateY(-50%)',
+                      background: imgIndex === images.length - 1 ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.6)',
+                      border: 'none', color: '#fff', borderRadius: '50%', width: 38, height: 38,
+                      cursor: imgIndex === images.length - 1 ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}><ChevronRight size={18} /></button>
+                  </>
+                )}
+              </div>
+            )}
           </div>
-        ) : (
-          <div style={{ position: 'relative', textAlign: 'center' }}>
-            <img
-              src={images[imgIndex]?.src}
-              alt={`${trade.ticker}`}
-              style={{ maxWidth: '100%', maxHeight: '62vh', objectFit: 'contain', borderRadius: 8 }}
-            />
-            {images.length > 1 && (
+
+          {/* Right panel – trade details */}
+          <div style={{
+            width: 320, flexShrink: 0, minWidth: 0,
+            background: 'var(--bg-panel)', border: '1px solid var(--border)',
+            borderRadius: 10, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10,
+            overflowY: 'auto', maxHeight: '70vh',
+          }}>
+            {/* Date + direction */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontWeight: 700, fontSize: 18, color: 'var(--text)' }}>{trade.ticker}</span>
+              <span className={`badge ${trade.direction === 'L' ? 'badge-green' : 'badge-red'}`}>
+                {trade.direction === 'L' ? 'Long' : 'Short'}
+              </span>
+              {trade.setup && (
+                <span style={{ fontSize: 11, color: 'var(--text-faint)', background: 'var(--bg-card)', padding: '2px 8px', borderRadius: 10, marginLeft: 'auto' }}>
+                  {trade.setup}
+                </span>
+              )}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{trade.date}</div>
+
+            <div style={{ height: 1, background: 'var(--border)' }} />
+
+            {/* Stats grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px' }}>
+              {[
+                { label: 'מחיר כניסה', val: trade.entry      != null ? `$${parseFloat(trade.entry).toFixed(2)}`      : '—' },
+                { label: 'מחיר יציאה', val: trade.exit       != null ? `$${parseFloat(trade.exit).toFixed(2)}`       : '—' },
+                { label: 'סטופ',       val: trade.stop       != null ? `$${parseFloat(trade.stop).toFixed(2)}`       : '—' },
+                { label: 'כמות',       val: trade.quantity   != null ? trade.quantity                                 : '—' },
+                { label: 'עמלה',       val: trade.commission != null ? `$${parseFloat(trade.commission).toFixed(2)}` : '—' },
+              ].map(({ label, val }) => (
+                <div key={label}>
+                  <div style={{ fontSize: 10, color: 'var(--text-faint)', marginBottom: 1 }}>{label}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{val}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* PnL + R */}
+            <div style={{ display: 'flex', gap: 12, alignItems: 'baseline', flexWrap: 'wrap' }}>
+              {pnl != null && (
+                <span style={{ fontSize: 22, fontWeight: 800, color: pnlColor(pnl) }} className="amount">
+                  {pnl >= 0 ? '+' : ''}${Math.abs(pnl).toFixed(2)}
+                </span>
+              )}
+              {rVal != null && (
+                <span style={{ fontSize: 15, fontWeight: 700, color: rVal >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                  {rVal >= 0 ? '+' : ''}{rVal.toFixed(2)}R
+                </span>
+              )}
+            </div>
+
+            <div style={{ height: 1, background: 'var(--border)' }} />
+
+            {/* Execution score + followed rules */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 11, color: 'var(--text-faint)', minWidth: 110 }}>ציון ביצוע</span>
+                <span style={{ fontSize: 16, letterSpacing: 2 }}>
+                  {execScore != null
+                    ? Array.from({ length: 5 }, (_, i) => i < execScore ? '★' : '☆').join('')
+                    : <span style={{ color: 'var(--text-faint)' }}>—</span>
+                  }
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 11, color: 'var(--text-faint)', minWidth: 110 }}>עקב לכללים</span>
+                {trade.followed_rules == null
+                  ? <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>—</span>
+                  : trade.followed_rules
+                    ? <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--green)' }}>✓ Yes</span>
+                    : <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--red)' }}>✗ No</span>
+                }
+              </div>
+            </div>
+
+            {trade.notes?.trim() && (
               <>
-                <button onClick={onPrev} disabled={imgIndex === 0} style={{
-                  position: 'absolute', left: -48, top: '50%', transform: 'translateY(-50%)',
-                  background: imgIndex === 0 ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.6)',
-                  border: 'none', color: '#fff', borderRadius: '50%', width: 38, height: 38,
-                  cursor: imgIndex === 0 ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}><ChevronLeft size={18} /></button>
-                <button onClick={onNext} disabled={imgIndex === images.length - 1} style={{
-                  position: 'absolute', right: -48, top: '50%', transform: 'translateY(-50%)',
-                  background: imgIndex === images.length - 1 ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.6)',
-                  border: 'none', color: '#fff', borderRadius: '50%', width: 38, height: 38,
-                  cursor: imgIndex === images.length - 1 ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}><ChevronRight size={18} /></button>
+                <div style={{ height: 1, background: 'var(--border)' }} />
+                <div>
+                  <div style={{ fontSize: 10, color: 'var(--text-faint)', marginBottom: 4 }}>הערות</div>
+                  <div style={{
+                    fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.55,
+                    whiteSpace: 'pre-wrap', maxHeight: 150, overflowY: 'auto',
+                  }}>
+                    {trade.notes}
+                  </div>
+                </div>
               </>
             )}
           </div>
-        )}
-
-        {/* Trade info bar */}
-        <div style={{
-          background: 'var(--bg-panel)', borderRadius: 8, padding: '10px 16px',
-          display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', border: '1px solid var(--border)',
-        }}>
-          <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)' }}>{trade.ticker}</span>
-          <span className={`badge ${trade.direction === 'L' ? 'badge-green' : 'badge-red'}`}>
-            {trade.direction === 'L' ? 'Long' : 'Short'}
-          </span>
-          {trade.entry && <span style={{ fontSize: 12, color: 'var(--green)', fontWeight: 600 }}>Entry: ${parseFloat(trade.entry).toFixed(2)}</span>}
-          {trade.exit  && <span style={{ fontSize: 12, color: 'var(--red)',   fontWeight: 600 }}>Exit: ${parseFloat(trade.exit).toFixed(2)}</span>}
-          {trade.stop  && <span style={{ fontSize: 12, color: '#f59e0b',      fontWeight: 600 }}>Stop: ${parseFloat(trade.stop).toFixed(2)}</span>}
-          {pnl != null && (
-            <span style={{ fontSize: 13, fontWeight: 700, color: pnlColor(pnl) }} className="amount">
-              {pnl >= 0 ? '+' : ''}${Math.abs(pnl).toFixed(2)}
-            </span>
-          )}
-          {rVal != null && (
-            <span style={{ fontSize: 12, fontWeight: 600, color: rVal >= 0 ? 'var(--green)' : 'var(--red)' }}>
-              {rVal >= 0 ? '+' : ''}{rVal.toFixed(2)}R
-            </span>
-          )}
-          {trade.setup && <span style={{ fontSize: 12, color: 'var(--text-faint)', background: 'var(--bg-card)', padding: '2px 9px', borderRadius: 12 }}>{trade.setup}</span>}
-          <span style={{ fontSize: 12, color: 'var(--text-faint)', marginLeft: 'auto' }}>{trade.date}</span>
         </div>
-
-        {trade.notes?.trim() && (
-          <div style={{ background: 'var(--bg-panel)', borderRadius: 8, padding: '9px 14px', fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.55, border: '1px solid var(--border)', whiteSpace: 'pre-wrap' }}>
-            {trade.notes}
-          </div>
-        )}
       </div>
     </div>
   );
@@ -135,8 +250,11 @@ export default function ChartLibrary({ trades, onUpdate }) {
   const [search, setSearch] = useState('');
   const [setupFilter, setSetupFilter] = useState('all');
   const [outcomeFilter, setOutcomeFilter] = useState('all');
-  const [activeTrade, setActiveTrade] = useState(null);
+  const [activeIndex, setActiveIndex] = useState(null);
   const [activeImgIndex, setActiveImgIndex] = useState(0);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo]   = useState('');
+  const [sortBy, setSortBy]   = useState('date'); // 'date' | 'pnl' | 'r'
 
   const theme = typeof document !== 'undefined'
     ? (document.documentElement.getAttribute('data-theme') || 'light')
@@ -153,18 +271,28 @@ export default function ChartLibrary({ trades, onUpdate }) {
     return [...s].sort();
   }, [tradedTrades]);
 
-  const filtered = useMemo(() =>
-    tradedTrades.filter(trade => {
-      if (outcomeFilter === 'wins' && !(parseFloat(trade.pnl) > 0)) return false;
+  const filtered = useMemo(() => {
+    let list = tradedTrades.filter(trade => {
+      if (outcomeFilter === 'wins'   && !(parseFloat(trade.pnl) > 0)) return false;
       if (outcomeFilter === 'losses' && !(parseFloat(trade.pnl) < 0)) return false;
       if (setupFilter !== 'all' && trade.setup !== setupFilter) return false;
+      if (dateFrom && trade.date < dateFrom) return false;
+      if (dateTo   && trade.date > dateTo)   return false;
       if (search) {
         const q = search.toLowerCase();
-        if (!trade.ticker?.toLowerCase().includes(q) && !trade.setup?.toLowerCase().includes(q)) return false;
+        if (!trade.ticker?.toLowerCase().includes(q) &&
+            !trade.setup?.toLowerCase().includes(q) &&
+            !trade.date?.includes(q)) return false;
       }
       return true;
-    }),
-  [tradedTrades, outcomeFilter, setupFilter, search]);
+    });
+    if (sortBy === 'pnl') list = [...list].sort((a, b) => parseFloat(b.pnl) - parseFloat(a.pnl));
+    else if (sortBy === 'r') list = [...list].sort((a, b) => parseFloat(b.r_value || 0) - parseFloat(a.r_value || 0));
+    // default 'date' is already sorted newest first from tradedTrades
+    return list;
+  }, [tradedTrades, outcomeFilter, setupFilter, search, dateFrom, dateTo, sortBy]);
+
+  const activeTrade = activeIndex != null ? filtered[activeIndex] ?? null : null;
 
   const handleUpload = useCallback((trade, e) => {
     e.stopPropagation();
@@ -190,6 +318,19 @@ export default function ChartLibrary({ trades, onUpdate }) {
 
   const activeImages = activeTrade ? normalizeImages(activeTrade.chart_images) : [];
 
+  function openTrade(trade) {
+    const idx = filtered.indexOf(trade);
+    setActiveIndex(idx >= 0 ? idx : null);
+    setActiveImgIndex(0);
+  }
+
+  function goToPrevTrade() {
+    if (activeIndex > 0) { setActiveIndex(activeIndex - 1); setActiveImgIndex(0); }
+  }
+  function goToNextTrade() {
+    if (activeIndex < filtered.length - 1) { setActiveIndex(activeIndex + 1); setActiveImgIndex(0); }
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
@@ -205,7 +346,7 @@ export default function ChartLibrary({ trades, onUpdate }) {
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Filters row 1 */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ position: 'relative', flex: '1 1 180px', minWidth: 160 }}>
           <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-faint)' }} />
@@ -225,6 +366,37 @@ export default function ChartLibrary({ trades, onUpdate }) {
         )}
       </div>
 
+      {/* Filters row 2: date range + sort */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <input
+          className="input" type="date" value={dateFrom}
+          onChange={e => setDateFrom(e.target.value)}
+          style={{ fontSize: 12, width: 140 }}
+          placeholder="מתאריך"
+        />
+        <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>—</span>
+        <input
+          className="input" type="date" value={dateTo}
+          onChange={e => setDateTo(e.target.value)}
+          style={{ fontSize: 12, width: 140 }}
+          placeholder="עד תאריך"
+        />
+        {(dateFrom || dateTo) && (
+          <button
+            onClick={() => { setDateFrom(''); setDateTo(''); }}
+            style={{
+              fontSize: 11, padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer',
+              background: 'var(--bg-card)', color: 'var(--text-muted)', fontFamily: 'inherit',
+            }}
+          >✕ נקה תאריכים</button>
+        )}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+          <FilterBtn value="date" current={sortBy} onChange={setSortBy} label="תאריך" />
+          <FilterBtn value="pnl"  current={sortBy} onChange={setSortBy} label="P&L" />
+          <FilterBtn value="r"    current={sortBy} onChange={setSortBy} label="R" />
+        </div>
+      </div>
+
       {/* Grid */}
       {filtered.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-faint)' }}>
@@ -241,7 +413,7 @@ export default function ChartLibrary({ trades, onUpdate }) {
             return (
               <div
                 key={trade.id}
-                onClick={() => { setActiveTrade(trade); setActiveImgIndex(0); }}
+                onClick={() => openTrade(trade)}
                 style={{
                   background: 'var(--bg-panel)', border: '1px solid var(--border)',
                   borderRadius: 10, overflow: 'hidden', cursor: 'pointer',
@@ -293,6 +465,19 @@ export default function ChartLibrary({ trades, onUpdate }) {
                       </span>
                     )}
                   </div>
+                  {/* Entry / Exit prices */}
+                  <div style={{ display: 'flex', gap: 10, fontSize: 11 }}>
+                    {trade.entry != null && (
+                      <span style={{ color: 'var(--green)', fontWeight: 600 }}>
+                        כניסה: ${parseFloat(trade.entry).toFixed(2)}
+                      </span>
+                    )}
+                    {trade.exit != null && (
+                      <span style={{ color: 'var(--red)', fontWeight: 600 }}>
+                        יציאה: ${parseFloat(trade.exit).toFixed(2)}
+                      </span>
+                    )}
+                  </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     {pnl != null && (
                       <span style={{ fontSize: 12, fontWeight: 700, color: pnlColor(pnl) }} className="amount">
@@ -318,9 +503,15 @@ export default function ChartLibrary({ trades, onUpdate }) {
           trade={activeTrade}
           images={activeImages}
           imgIndex={activeImgIndex}
-          onClose={() => setActiveTrade(null)}
+          onClose={() => setActiveIndex(null)}
           onPrev={() => setActiveImgIndex(i => Math.max(0, i - 1))}
           onNext={() => setActiveImgIndex(i => Math.min(activeImages.length - 1, i + 1))}
+          onPrevTrade={goToPrevTrade}
+          onNextTrade={goToNextTrade}
+          hasPrevTrade={activeIndex > 0}
+          hasNextTrade={activeIndex < filtered.length - 1}
+          tradeIndex={activeIndex}
+          totalTrades={filtered.length}
           theme={theme}
         />
       )}
