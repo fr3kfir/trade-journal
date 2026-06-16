@@ -72,6 +72,16 @@ function Lightbox({ trade, images, imgIndex, onClose, onPrev, onNext, onPrevTrad
           <button onClick={onNextTrade} disabled={!hasNextTrade} style={navBtnStyle(hasNextTrade)}>עסקה הבאה →</button>
           <span style={{ fontWeight: 700, fontSize: 15, color: '#fff', marginLeft: 8 }}>{trade.ticker}</span>
           <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginLeft: 4 }}>{trade.date}</span>
+          {trade.entry != null && (
+            <span style={{ fontSize: 12, color: '#22c55e', fontWeight: 600, marginLeft: 8 }}>
+              כניסה: ${parseFloat(trade.entry).toFixed(2)}
+            </span>
+          )}
+          {trade.exit != null && (
+            <span style={{ fontSize: 12, color: '#ef4444', fontWeight: 600 }}>
+              יציאה: ${parseFloat(trade.exit).toFixed(2)}
+            </span>
+          )}
           <button
             onClick={onClose}
             style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 22, lineHeight: 1, padding: '0 4px' }}
@@ -164,11 +174,11 @@ function Lightbox({ trade, images, imgIndex, onClose, onPrev, onNext, onPrevTrad
             {/* Stats grid */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px' }}>
               {[
-                { label: 'Entry',      val: trade.entry      != null ? `$${parseFloat(trade.entry).toFixed(2)}`      : '—' },
-                { label: 'Exit',       val: trade.exit       != null ? `$${parseFloat(trade.exit).toFixed(2)}`       : '—' },
-                { label: 'Stop',       val: trade.stop       != null ? `$${parseFloat(trade.stop).toFixed(2)}`       : '—' },
-                { label: 'Quantity',   val: trade.quantity   != null ? trade.quantity                                 : '—' },
-                { label: 'Commission', val: trade.commission != null ? `$${parseFloat(trade.commission).toFixed(2)}` : '—' },
+                { label: 'מחיר כניסה', val: trade.entry      != null ? `$${parseFloat(trade.entry).toFixed(2)}`      : '—' },
+                { label: 'מחיר יציאה', val: trade.exit       != null ? `$${parseFloat(trade.exit).toFixed(2)}`       : '—' },
+                { label: 'סטופ',       val: trade.stop       != null ? `$${parseFloat(trade.stop).toFixed(2)}`       : '—' },
+                { label: 'כמות',       val: trade.quantity   != null ? trade.quantity                                 : '—' },
+                { label: 'עמלה',       val: trade.commission != null ? `$${parseFloat(trade.commission).toFixed(2)}` : '—' },
               ].map(({ label, val }) => (
                 <div key={label}>
                   <div style={{ fontSize: 10, color: 'var(--text-faint)', marginBottom: 1 }}>{label}</div>
@@ -196,7 +206,7 @@ function Lightbox({ trade, images, imgIndex, onClose, onPrev, onNext, onPrevTrad
             {/* Execution score + followed rules */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 11, color: 'var(--text-faint)', minWidth: 110 }}>Execution Score</span>
+                <span style={{ fontSize: 11, color: 'var(--text-faint)', minWidth: 110 }}>ציון ביצוע</span>
                 <span style={{ fontSize: 16, letterSpacing: 2 }}>
                   {execScore != null
                     ? Array.from({ length: 5 }, (_, i) => i < execScore ? '★' : '☆').join('')
@@ -205,7 +215,7 @@ function Lightbox({ trade, images, imgIndex, onClose, onPrev, onNext, onPrevTrad
                 </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 11, color: 'var(--text-faint)', minWidth: 110 }}>Followed Rules</span>
+                <span style={{ fontSize: 11, color: 'var(--text-faint)', minWidth: 110 }}>עקב לכללים</span>
                 {trade.followed_rules == null
                   ? <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>—</span>
                   : trade.followed_rules
@@ -219,7 +229,7 @@ function Lightbox({ trade, images, imgIndex, onClose, onPrev, onNext, onPrevTrad
               <>
                 <div style={{ height: 1, background: 'var(--border)' }} />
                 <div>
-                  <div style={{ fontSize: 10, color: 'var(--text-faint)', marginBottom: 4 }}>Notes</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-faint)', marginBottom: 4 }}>הערות</div>
                   <div style={{
                     fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.55,
                     whiteSpace: 'pre-wrap', maxHeight: 150, overflowY: 'auto',
@@ -452,6 +462,19 @@ export default function ChartLibrary({ trades, onUpdate }) {
                     {trade.setup && (
                       <span style={{ fontSize: 10, color: 'var(--text-faint)', background: 'var(--bg-card)', padding: '1px 6px', borderRadius: 10, marginLeft: 'auto' }}>
                         {trade.setup}
+                      </span>
+                    )}
+                  </div>
+                  {/* Entry / Exit prices */}
+                  <div style={{ display: 'flex', gap: 10, fontSize: 11 }}>
+                    {trade.entry != null && (
+                      <span style={{ color: 'var(--green)', fontWeight: 600 }}>
+                        כניסה: ${parseFloat(trade.entry).toFixed(2)}
+                      </span>
+                    )}
+                    {trade.exit != null && (
+                      <span style={{ color: 'var(--red)', fontWeight: 600 }}>
+                        יציאה: ${parseFloat(trade.exit).toFixed(2)}
                       </span>
                     )}
                   </div>
