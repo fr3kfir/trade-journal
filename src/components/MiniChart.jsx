@@ -78,6 +78,96 @@ export default function MiniChart({ trade, height = 160, theme = 'light' }) {
         hotlist:           false,
         calendar:          false,
       });
+
+      // Add buy/sell markers via TradingView's shape API
+      widgetRef.current.onChartReady(() => {
+        if (dead) return;
+        try {
+          const chart = widgetRef.current.activeChart();
+          const isLong    = trade.direction === 'L';
+          const entryP    = parseFloat(trade.entry);
+          const exitP     = parseFloat(trade.exit);
+          // Use ~14:00 UTC (10 AM ET) as approximate trade timestamp
+          const tradeTs   = Math.floor(new Date(trade.date + 'T14:00:00Z').getTime() / 1000);
+
+          if (!isNaN(entryP) && entryP > 0) {
+            // Arrow on the bar
+            chart.createShape(
+              { time: tradeTs, price: entryP },
+              {
+                shape:             isLong ? 'arrow_up' : 'arrow_down',
+                lock:              true,
+                disableSelection:  true,
+                disableSave:       true,
+                disableUndo:       true,
+                overrides: {
+                  color:    isLong ? '#16a34a' : '#dc2626',
+                  fontsize: 14,
+                  bold:     true,
+                  text:     isLong
+                    ? `כניסה $${entryP.toFixed(2)}`
+                    : `כניסה $${entryP.toFixed(2)}`,
+                },
+              }
+            );
+            // Horizontal dashed line at entry
+            chart.createShape(
+              { price: entryP },
+              {
+                shape:            'horizontal_line',
+                lock:             true,
+                disableSelection: true,
+                disableSave:      true,
+                disableUndo:      true,
+                overrides: {
+                  linecolor: isLong ? '#16a34a' : '#dc2626',
+                  linewidth: 1,
+                  linestyle: 1,
+                },
+              }
+            );
+          }
+
+          if (!isNaN(exitP) && exitP > 0) {
+            chart.createShape(
+              { time: tradeTs, price: exitP },
+              {
+                shape:             isLong ? 'arrow_down' : 'arrow_up',
+                lock:              true,
+                disableSelection:  true,
+                disableSave:       true,
+                disableUndo:       true,
+                overrides: {
+                  color:    isLong ? '#dc2626' : '#16a34a',
+                  fontsize: 14,
+                  bold:     true,
+                  text:     isLong
+                    ? `יציאה $${exitP.toFixed(2)}`
+                    : `יציאה $${exitP.toFixed(2)}`,
+                },
+              }
+            );
+            // Horizontal dashed line at exit
+            chart.createShape(
+              { price: exitP },
+              {
+                shape:            'horizontal_line',
+                lock:             true,
+                disableSelection: true,
+                disableSave:      true,
+                disableUndo:      true,
+                overrides: {
+                  linecolor: isLong ? '#dc2626' : '#16a34a',
+                  linewidth: 1,
+                  linestyle: 1,
+                },
+              }
+            );
+          }
+        } catch {
+          // createShape not available — fail silently
+        }
+      });
     });
 
     return () => {
