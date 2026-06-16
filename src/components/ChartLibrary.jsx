@@ -118,8 +118,42 @@ function Lightbox({ trade, images, imgIndex, onClose, onPrev, onNext, onPrevTrad
 
             {/* Chart or image */}
             {tab === 'chart' ? (
-              <div style={{ borderRadius: 8, overflow: 'hidden', height: '62vh' }}>
+              <div style={{ borderRadius: 8, overflow: 'hidden', height: '62vh', position: 'relative' }}>
                 <MiniChart trade={trade} height={window.innerHeight * 0.62} theme={theme} />
+                {/* Entry/Exit overlay badges */}
+                <div style={{
+                  position: 'absolute', top: 10, left: 10,
+                  display: 'flex', gap: 8, flexWrap: 'wrap', zIndex: 10,
+                  pointerEvents: 'none',
+                }}>
+                  {trade.entry != null && (
+                    <span style={{
+                      background: 'rgba(34,197,94,0.9)', color: '#fff',
+                      fontSize: 12, fontWeight: 700, padding: '4px 10px',
+                      borderRadius: 6, backdropFilter: 'blur(4px)',
+                    }}>
+                      ↑ כניסה ${parseFloat(trade.entry).toFixed(2)}
+                    </span>
+                  )}
+                  {trade.exit != null && (
+                    <span style={{
+                      background: 'rgba(239,68,68,0.9)', color: '#fff',
+                      fontSize: 12, fontWeight: 700, padding: '4px 10px',
+                      borderRadius: 6, backdropFilter: 'blur(4px)',
+                    }}>
+                      ↓ יציאה ${parseFloat(trade.exit).toFixed(2)}
+                    </span>
+                  )}
+                  {trade.stop != null && (
+                    <span style={{
+                      background: 'rgba(245,158,11,0.9)', color: '#fff',
+                      fontSize: 12, fontWeight: 700, padding: '4px 10px',
+                      borderRadius: 6, backdropFilter: 'blur(4px)',
+                    }}>
+                      ✕ סטופ ${parseFloat(trade.stop).toFixed(2)}
+                    </span>
+                  )}
+                </div>
               </div>
             ) : (
               <div style={{ position: 'relative', textAlign: 'center' }}>
