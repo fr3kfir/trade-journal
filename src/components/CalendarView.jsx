@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -33,10 +33,143 @@ function useIsMobile() {
   return isMobile;
 }
 
+function DayModal({ date, trades, onClose }) {
+  const dayTrades = trades
+    .filter(t => t.date?.slice(0, 10) === date && t.pnl != null)
+    .sort((a, b) => (parseFloat(b.pnl) - parseFloat(a.pnl)));
+
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  if (dayTrades.length === 0) return null;
+
+  const totalPnl = dayTrades.reduce((s, t) => s + parseFloat(t.pnl), 0);
+  const wins = dayTrades.filter(t => parseFloat(t.pnl) > 0).length;
+
+  // Format display date e.g. "Monday, June 15, 2026"
+  const displayDate = new Date(date + 'T12:00:00Z').toLocaleDateString('en-US', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+  });
+
+  return (
+    <div
+      className="modal-overlay"
+      onClick={e => e.target === e.currentTarget && onClose()}
+      style={{ alignItems: 'center', justifyContent: 'center' }}
+    >
+      <div className="modal" style={{ maxWidth: 600, width: '95vw', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>{displayDate}</div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3, display: 'flex', gap: 12 }}>
+              <span>{dayTrades.length} עסקאות</span>
+              <span style={{ color: wins === dayTrades.length ? 'var(--green)' : wins === 0 ? 'var(--red)' : 'var(--text-muted)' }}>
+                {wins}W / {dayTrades.length - wins}L
+              </span>
+              <span style={{ fontWeight: 700, color: totalPnl >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                {totalPnl >= 0 ? '+' : ''}${Math.abs(totalPnl).toFixed(2)}
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{ background: 'none', border: 'none', color: 'var(--text-faint)', cursor: 'pointer', fontSize: 22, lineHeight: 1, padding: '0 4px' }}
+          >×</button>
+        </div>
+
+        {/* Trade list */}
+        <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {dayTrades.map((trade, i) => {
+            const pnl = parseFloat(trade.pnl);
+            const rVal = trade.r_value != null ? parseFloat(trade.r_value) : null;
+            return (
+              <div key={trade.id || i} style={{
+                background: 'var(--bg-card)',
+                border: `1px solid ${pnl > 0 ? 'rgba(52,211,153,0.25)' : pnl < 0 ? 'rgba(248,113,113,0.25)' : 'var(--border)'}`,
+                borderRadius: 8,
+                padding: '10px 14px',
+                display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+              }}>
+                {/* Left strip */}
+                <div style={{
+                  width: 3, alignSelf: 'stretch', borderRadius: 2, flexShrink: 0,
+                  background: pnl > 0 ? 'var(--green)' : pnl < 0 ? 'var(--red)' : 'var(--border)',
+                  minHeight: 36,
+                }} />
+
+                {/* Ticker + direction */}
+                <div style={{ minWidth: 80 }}>
+                  <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>{trade.ticker}</span>
+                  <span className={`badge ${trade.direction === 'L' ? 'badge-green' : 'badge-red'}`} style={{ fontSize: 9, marginLeft: 6 }}>
+                    {trade.direction === 'L' ? 'Long' : 'Short'}
+                  </span>
+                </div>
+
+                {/* Entry / Exit */}
+                <div style={{ display: 'flex', gap: 12, fontSize: 12 }}>
+                  {trade.entry != null && (
+                    <div>
+                      <div style={{ fontSize: 9, color: 'var(--text-faint)' }}>כניסה</div>
+                      <div style={{ fontWeight: 600, color: 'var(--green)' }}>${parseFloat(trade.entry).toFixed(2)}</div>
+                    </div>
+                  )}
+                  {trade.exit != null && (
+                    <div>
+                      <div style={{ fontSize: 9, color: 'var(--text-faint)' }}>יציאה</div>
+                      <div style={{ fontWeight: 600, color: 'var(--red)' }}>${parseFloat(trade.exit).toFixed(2)}</div>
+                    </div>
+                  )}
+                  {trade.stop != null && (
+                    <div>
+                      <div style={{ fontSize: 9, color: 'var(--text-faint)' }}>סטופ</div>
+                      <div style={{ fontWeight: 600, color: '#f59e0b' }}>${parseFloat(trade.stop).toFixed(2)}</div>
+                    </div>
+                  )}
+                  {trade.quantity != null && (
+                    <div>
+                      <div style={{ fontSize: 9, color: 'var(--text-faint)' }}>כמות</div>
+                      <div style={{ fontWeight: 600, color: 'var(--text)' }}>{trade.quantity}</div>
+                    </div>
+                  )}
+                </div>
+
+                {/* PnL + R */}
+                <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: pnl > 0 ? 'var(--green)' : pnl < 0 ? 'var(--red)' : 'var(--text-muted)' }} className="amount">
+                    {pnl >= 0 ? '+' : ''}${Math.abs(pnl).toFixed(2)}
+                  </div>
+                  {rVal != null && (
+                    <div style={{ fontSize: 11, color: rVal >= 0 ? 'var(--green)' : 'var(--red)', fontWeight: 600 }}>
+                      {rVal >= 0 ? '+' : ''}{rVal.toFixed(2)}R
+                    </div>
+                  )}
+                </div>
+
+                {/* Setup */}
+                {trade.setup && (
+                  <span style={{ fontSize: 10, color: 'var(--text-faint)', background: 'var(--bg-panel)', padding: '2px 8px', borderRadius: 10, border: '1px solid var(--border)' }}>
+                    {trade.setup}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function CalendarView({ trades }) {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
+  const [selectedDate, setSelectedDate] = useState(null);
   const isMobile = useIsMobile();
 
   const dayMap = useMemo(() => {
@@ -174,12 +307,16 @@ export default function CalendarView({ trades }) {
                 return (
                   <div
                     key={di}
+                    onClick={hasTrades ? () => setSelectedDate(cell.dateStr) : undefined}
+                    onMouseEnter={hasTrades ? e => { e.currentTarget.style.outline = '2px solid var(--navy)'; e.currentTarget.style.zIndex = '1'; } : undefined}
+                    onMouseLeave={hasTrades ? e => { e.currentTarget.style.outline = 'none'; e.currentTarget.style.zIndex = '0'; } : undefined}
                     style={{
                       minHeight: cellMinH, padding: cellPad,
                       borderRight: di < 6 ? '1px solid var(--border)' : 'none',
                       background: !cell.current ? 'var(--bg)' : isToday ? '#EFF6FF' : 'var(--bg-panel)',
                       display: 'flex', flexDirection: 'column', gap: 2,
                       position: 'relative', overflow: 'hidden',
+                      cursor: hasTrades ? 'pointer' : 'default',
                     }}
                   >
                     <div style={{
@@ -275,6 +412,13 @@ export default function CalendarView({ trades }) {
           </div>
         ))}
       </div>
+      {selectedDate && (
+        <DayModal
+          date={selectedDate}
+          trades={trades}
+          onClose={() => setSelectedDate(null)}
+        />
+      )}
     </div>
   );
 }
