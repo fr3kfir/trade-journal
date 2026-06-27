@@ -36,11 +36,28 @@ function RiskWarning({ position, nav }) {
   return null;
 }
 
+// Allocation donut — SVG circle chart
+function AllocationChart({ investedPct, cashPct, size = 110 }) {
+  const r = 40, cx = size / 2, cy = size / 2;
+  const circ = 2 * Math.PI * r;
+  const investedDash = (investedPct / 100) * circ;
+  return (
+    <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--border)" strokeWidth={14} />
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke="#16a34a" strokeWidth={14}
+        strokeDasharray={`${investedDash} ${circ}`} strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export default function Portfolio({ trades = [] }) {
-  const [ibkr, setIbkr]       = useState(null);   // { positions, nav, totalUnrealized, totalExposure, updatedAt }
+  const [ibkr, setIbkr]       = useState(null);
   const [loading, setLoading]  = useState(true);
   const [syncing, setSyncing]  = useState(false);
   const [error, setError]      = useState('');
+  const [manualNav, setManualNav] = useState(() => parseFloat(localStorage.getItem('apex_account_size') || '0') || 0);
+  const [editNav, setEditNav]  = useState(false);
+  const [navInput, setNavInput] = useState('');
 
   const loadCached = useCallback(async () => {
     setLoading(true);
@@ -78,6 +95,13 @@ export default function Portfolio({ trades = [] }) {
     } finally { setSyncing(false); }
   };
 
+  const saveManualNav = (v) => {
+    const n = parseFloat(v) || 0;
+    setManualNav(n);
+    localStorage.setItem('apex_account_size', String(n));
+    setEditNav(false);
+  };
+
   const updatedAgo = ibkr?.updatedAt ? (() => {
     const ms = Date.now() - new Date(ibkr.updatedAt).getTime();
     const m  = Math.floor(ms / 60000);
@@ -87,8 +111,13 @@ export default function Portfolio({ trades = [] }) {
     return 'זה עתה';
   })() : null;
 
-  const hasPositions = ibkr?.positions?.length > 0;
-  const nav          = ibkr?.nav;
+  const hasPositions  = ibkr?.positions?.length > 0;
+  // NAV: prefer IBKR data, fall back to manually entered account size
+  const nav           = ibkr?.nav || (manualNav > 0 ? manualNav : null);
+  const invested      = ibkr?.totalExposure || 0;
+  const cash          = nav ? Math.max(0, nav - invested) : null;
+  const investedPct   = nav && invested ? Math.min((invested / nav) * 100, 100) : 0;
+  const cashPct       = 100 - investedPct;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -127,37 +156,92 @@ export default function Portfolio({ trades = [] }) {
         </div>
       )}
 
-      {/* NAV + Summary Cards */}
-      {(nav || ibkr?.totalUnrealized != null) && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 10 }}>
-          {nav && (
-            <div style={{ background: 'var(--navy)', borderRadius: 10, padding: '14px 16px', color: '#fff' }}>
-              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>Net Liquidation (NAV)</div>
-              <div style={{ fontSize: 24, fontWeight: 800 }} className="amount">{fmt$(nav)}</div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 3 }}>גודל חשבון IBKR</div>
-            </div>
+      {/* ── Portfolio size input (if no IBKR NAV) ── */}
+      {!ibkr?.nav && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg-panel)', border: '1px dashed var(--border)', borderRadius: 10, padding: '12px 16px' }}>
+          <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>גודל תיק (ידני — Sync יחליף אוטומטית):</span>
+          {editNav ? (
+            <>
+              <input autoFocus className="input" type="number" value={navInput} onChange={e => setNavInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && saveManualNav(navInput)}
+                placeholder="e.g. 50000" style={{ width: 140, fontSize: 13 }} />
+              <button className="btn btn-primary" style={{ fontSize: 12, padding: '5px 14px' }} onClick={() => saveManualNav(navInput)}>שמור</button>
+              <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setEditNav(false)}>ביטול</button>
+            </>
+          ) : (
+            <>
+              <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }} className="amount">
+                {manualNav > 0 ? fmt$(manualNav) : '—'}
+              </span>
+              <button className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => { setNavInput(manualNav || ''); setEditNav(true); }}>
+                ✏️ ערוך
+              </button>
+            </>
           )}
-          {ibkr?.totalUnrealized != null && (
-            <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px' }}>
-              <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>Unrealized P&L</div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: ibkr.totalUnrealized >= 0 ? 'var(--green)' : 'var(--red)' }} className="amount">
-                {fmt$(ibkr.totalUnrealized, true)}
+        </div>
+      )}
+
+      {/* ── Allocation overview ── */}
+      {nav > 0 && (
+        <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 12, padding: '18px 20px' }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 16 }}>הקצאת תיק</div>
+          <div style={{ display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap' }}>
+
+            {/* Donut */}
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              <AllocationChart investedPct={investedPct} cashPct={cashPct} size={110} />
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--text)' }}>{investedPct.toFixed(0)}%</div>
+                <div style={{ fontSize: 9, color: 'var(--text-faint)', textTransform: 'uppercase' }}>מושקע</div>
               </div>
             </div>
-          )}
-          {ibkr?.totalExposure > 0 && (
-            <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px' }}>
-              <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>חשיפה כוללת</div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)' }} className="amount">{fmt$(ibkr.totalExposure)}</div>
-              {nav && <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 3 }}>{(ibkr.totalExposure / nav * 100).toFixed(0)}% מה-NAV</div>}
+
+            {/* Stats */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1 }}>
+
+              {/* NAV */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>גודל תיק (NAV)</span>
+                <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--navy)' }} className="amount">{fmt$(nav)}</span>
+              </div>
+
+              {/* Invested bar */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                  <span style={{ fontSize: 12, color: '#16a34a', fontWeight: 600 }}>📈 בפוזיציות</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#16a34a' }} className="amount">
+                    {fmt$(invested)} <span style={{ fontSize: 11, fontWeight: 600 }}>({investedPct.toFixed(1)}%)</span>
+                  </span>
+                </div>
+                <div style={{ height: 8, background: 'var(--border)', borderRadius: 4, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${investedPct}%`, background: '#16a34a', borderRadius: 4, transition: 'width 0.5s ease' }} />
+                </div>
+              </div>
+
+              {/* Cash bar */}
+              {cash != null && (
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                    <span style={{ fontSize: 12, color: '#6366f1', fontWeight: 600 }}>💵 מזומן</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#6366f1' }} className="amount">
+                      {fmt$(cash)} <span style={{ fontSize: 11, fontWeight: 600 }}>({cashPct.toFixed(1)}%)</span>
+                    </span>
+                  </div>
+                  <div style={{ height: 8, background: 'var(--border)', borderRadius: 4, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${cashPct}%`, background: '#6366f1', borderRadius: 4, transition: 'width 0.5s ease' }} />
+                  </div>
+                </div>
+              )}
+
+              {/* Unrealized P&L */}
+              {ibkr?.totalUnrealized != null && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 4, borderTop: '1px solid var(--border)' }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>Unrealized P&L</span>
+                  <PnlBadge value={ibkr.totalUnrealized} />
+                </div>
+              )}
             </div>
-          )}
-          {hasPositions && (
-            <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px' }}>
-              <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>פוזיציות פתוחות</div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text)' }}>{ibkr.positions.length}</div>
-            </div>
-          )}
+          </div>
         </div>
       )}
 
