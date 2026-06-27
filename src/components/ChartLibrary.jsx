@@ -459,8 +459,11 @@ export default function ChartLibrary({ trades, onUpdate }) {
                 {/* P&L top strip */}
                 <div style={{ height: 3, background: pnl == null ? 'var(--border)' : pnl > 0 ? 'var(--green)' : 'var(--red)' }} />
 
-                {/* Mini chart */}
-                <MiniChart trade={trade} height={160} theme={theme} />
+                {/* Mini chart — overlay prevents TradingView widget from swallowing the card click */}
+                <div style={{ position: 'relative' }}>
+                  <MiniChart trade={trade} height={160} theme={theme} />
+                  <div style={{ position: 'absolute', inset: 0, zIndex: 5 }} />
+                </div>
 
                 {/* Upload overlay button */}
                 <div style={{ position: 'relative' }}>
