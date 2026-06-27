@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react';
 
-const SETUPS = ['VCP', 'HTF', 'EP', 'Breakout', 'Base Breakout', 'Pullback', 'Cup with Handle', 'Flat Base', 'IPO Base', 'Other'];
+const SETUPS = ['VCP', 'HTF', 'EP', 'HVC', 'U&R', 'Breakout', 'Base Breakout', 'Pullback', 'Cup with Handle', 'Flat Base', 'IPO Base', 'Other'];
+
+const SECTORS = [
+  'Technology', 'Healthcare', 'Energy', 'Financials', 'Consumer Discretionary',
+  'Industrials', 'Materials', 'Communication', 'Utilities', 'Real Estate', 'AI/Semi', 'Biotech', 'Other',
+];
 
 const MARKET_CONDITIONS = [
   { value: 'bull',   label: '🟢 Bull — שוק בעלייה',    color: '#16a34a' },
@@ -14,6 +19,9 @@ const EMPTY = {
   entry: '', exit: '', stop: '', quantity: '',
   pnl: '', r_value: '', commission: '', setup: '',
   market_condition: '',
+  sector: '',
+  sector_leading: null,
+  rs_strong: null,
   thesis: '',
   notes: '',
   lessons: '',
@@ -187,6 +195,85 @@ export default function TradeModal({ trade, onSave, onClose }) {
               </div>
             </Field>
 
+            {/* Sector */}
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <Field label="סקטור / גרופ">
+                <select className="input" value={form.sector} onChange={e => set('sector', e.target.value)}>
+                  <option value="">— בחר סקטור —</option>
+                  {SECTORS.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </Field>
+            </div>
+
+            {/* 3-Way Alignment — Ariel's method */}
+            <div>
+              <div style={{ fontSize: 10.5, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+                ✅ 3-Way Alignment — שוק + סקטור + מניה
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {[
+                  { key: 'market_condition', label: '📈 שוק בכיוון?', type: 'bool3' },
+                  { key: 'sector_leading',   label: '🏭 הסקטור מוביל?', type: 'bool' },
+                  { key: 'rs_strong',        label: '💪 RS חזק (מוביל את השוק)?', type: 'bool' },
+                ].map(({ key, label, type }) => {
+                  if (type === 'bool3') {
+                    const opts = [
+                      { v: 'bull', l: '🟢 Bull', c: '#16a34a' },
+                      { v: 'chop', l: '🟡 Chop', c: '#d97706' },
+                      { v: 'bear', l: '🔴 Bear', c: '#dc2626' },
+                    ];
+                    return (
+                      <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 12, color: 'var(--text-muted)', minWidth: 200 }}>{label}</span>
+                        <div style={{ display: 'flex', gap: 5 }}>
+                          {opts.map(o => (
+                            <button key={o.v} type="button" onClick={() => set(key, form[key] === o.v ? '' : o.v)} style={{
+                              padding: '4px 10px', borderRadius: 6, border: '1px solid', cursor: 'pointer',
+                              fontSize: 11, fontWeight: 600, fontFamily: 'inherit',
+                              background: form[key] === o.v ? `${o.c}22` : 'transparent',
+                              borderColor: form[key] === o.v ? o.c : 'var(--border)',
+                              color: form[key] === o.v ? o.c : 'var(--text-faint)',
+                            }}>{o.l}</button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)', minWidth: 200 }}>{label}</span>
+                      <div style={{ display: 'flex', gap: 5 }}>
+                        {[{ v: true, l: '✓ כן', c: '#16a34a' }, { v: false, l: '✗ לא', c: '#dc2626' }].map(o => (
+                          <button key={String(o.v)} type="button" onClick={() => set(key, form[key] === o.v ? null : o.v)} style={{
+                            padding: '4px 12px', borderRadius: 6, border: '1px solid', cursor: 'pointer',
+                            fontSize: 11, fontWeight: 600, fontFamily: 'inherit',
+                            background: form[key] === o.v ? `${o.c}22` : 'transparent',
+                            borderColor: form[key] === o.v ? o.c : 'var(--border)',
+                            color: form[key] === o.v ? o.c : 'var(--text-faint)',
+                          }}>{o.l}</button>
+                        ))}
+                      </div>
+                      {form[key] === false && (
+                        <span style={{ fontSize: 10, color: '#dc2626', fontWeight: 600 }}>⚠ Ariel: לא לסחור בלי alignment</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              {/* Alignment score */}
+              {(() => {
+                const aligned = [
+                  form.market_condition === 'bull',
+                  form.sector_leading === true,
+                  form.rs_strong === true,
+                ].filter(Boolean).length;
+                if (aligned === 0) return null;
+                const color = aligned === 3 ? '#16a34a' : aligned === 2 ? '#d97706' : '#dc2626';
+                const msg   = aligned === 3 ? '✅ Alignment מלא — תנאים אידיאליים' : aligned === 2 ? '⚠ Alignment חלקי — שים לב לגודל פוזיציה' : '❌ Alignment חלש — שקול לדלג';
+                return <div style={{ fontSize: 12, color, fontWeight: 700, marginTop: 4 }}>{msg}</div>;
+              })()}
+            </div>
+
             {/* Thesis */}
             <Field label="📌 תזה — למה אני נכנס?">
               <textarea
@@ -251,6 +338,45 @@ export default function TradeModal({ trade, onSave, onClose }) {
             <Field label="עמלה $">
               <input className="input" type="number" step="0.01" value={form.commission} onChange={e => set('commission', e.target.value)} placeholder="0.00" style={{ maxWidth: 140 }} />
             </Field>
+
+            {/* Position Size Calculator — Ariel's method */}
+            {(() => {
+              const accountSize = parseFloat(localStorage.getItem('apex_account_size') || '0');
+              const riskPct     = parseFloat(localStorage.getItem('apex_risk_pct')     || '1');
+              const entryP      = parseFloat(form.entry);
+              const stopP       = parseFloat(form.stop);
+              if (!accountSize || !entryP || !stopP || entryP === stopP) return null;
+              const dollarRisk  = accountSize * (riskPct / 100);
+              const stopDist    = Math.abs(entryP - stopP);
+              const shares      = Math.floor(dollarRisk / stopDist);
+              const positionVal = shares * entryP;
+              const r1Target    = form.direction === 'L' ? entryP + stopDist : entryP - stopDist;
+              const r2Target    = form.direction === 'L' ? entryP + stopDist * 2 : entryP - stopDist * 2;
+              const r3Target    = form.direction === 'L' ? entryP + stopDist * 3 : entryP - stopDist * 3;
+              return (
+                <div style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 8, padding: '10px 12px' }}>
+                  <div style={{ fontSize: 10.5, fontWeight: 700, color: '#6366f1', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    📐 Position Sizing (ריסק {riskPct}% = ${dollarRisk.toFixed(0)})
+                  </div>
+                  <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 12 }}>
+                    <div><span style={{ color: 'var(--text-faint)' }}>כמות מניות: </span><span style={{ fontWeight: 800, color: 'var(--text)', fontSize: 14 }}>{shares.toLocaleString()}</span></div>
+                    <div><span style={{ color: 'var(--text-faint)' }}>גודל פוזיציה: </span><span style={{ fontWeight: 700, color: 'var(--text)' }}>${positionVal.toLocaleString(undefined, {maximumFractionDigits:0})}</span></div>
+                    <div><span style={{ color: 'var(--text-faint)' }}>ריסק בפועל: </span><span style={{ fontWeight: 700, color: '#dc2626' }}>-${dollarRisk.toFixed(0)}</span></div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 10, marginTop: 6, fontSize: 11 }}>
+                    <span style={{ color: 'var(--text-faint)' }}>יעדים: </span>
+                    {[['1R', r1Target], ['2R', r2Target], ['3R', r3Target]].map(([lbl, tgt]) => (
+                      <span key={lbl} style={{ fontWeight: 600, color: '#16a34a' }}>{lbl}: ${tgt.toFixed(2)}</span>
+                    ))}
+                  </div>
+                  <button type="button" onClick={() => set('quantity', shares)} style={{
+                    marginTop: 8, fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid #6366f1',
+                    background: 'transparent', color: '#6366f1', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
+                  }}>← הכנס {shares} מניות אוטומטית</button>
+                </div>
+              );
+            })()}
+
           </Section>
 
           {/* ── SECTION 3: REVIEW ── */}
