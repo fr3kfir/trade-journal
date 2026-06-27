@@ -33,9 +33,8 @@ function calcStats(trades) {
   const best = Math.max(...pnls);
   const worst = Math.min(...pnls);
   const totalComm = closed.reduce((s, t) => s + Math.abs(parseFloat(t.commission) || 0), 0);
-  const avgR = trades.filter(t => t.r_value).length
-    ? trades.filter(t => t.r_value).reduce((a, t) => a + parseFloat(t.r_value), 0) / trades.filter(t => t.r_value).length
-    : null;
+  const rVals = closed.filter(t => t.r_value != null && t.r_value !== '').map(t => parseFloat(t.r_value)).filter(r => !isNaN(r));
+  const avgR = rVals.length ? rVals.reduce((a, b) => a + b, 0) / rVals.length : null;
 
   // Max drawdown
   let peak = 0, cum = 0, maxDD = 0;
@@ -79,7 +78,7 @@ function calcStats(trades) {
   const byDow = {};
   sorted.forEach(t => {
     if (!t.date) return;
-    const d = DOW[new Date(t.date).getDay()];
+    const d = DOW[new Date(t.date + 'T12:00:00').getDay()];
     if (!byDow[d]) byDow[d] = { sum: 0, count: 0 };
     byDow[d].sum += parseFloat(t.pnl);
     byDow[d].count++;

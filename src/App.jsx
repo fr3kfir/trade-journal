@@ -18,6 +18,7 @@ import Routine from './components/Routine';
 import TaxReport from './components/TaxReport';
 import TradeReview from './components/TradeReview';
 import CalendarView from './components/CalendarView';
+import ChartLibrary from './components/ChartLibrary';
 import SettingsModal from './components/SettingsModal';
 
 const TF_RANGES = ['1W', '1M', '3M', 'YTD', 'ALL'];
@@ -39,10 +40,10 @@ function calcSummary(trades) {
   const total = pnls.reduce((a, b) => a + b, 0);
   const wins = pnls.filter(p => p > 0).length;
   const winRate = closed.length ? (wins / closed.length * 100).toFixed(1) : '0.0';
-  const rVals = trades.filter(t => t.r_value).map(t => parseFloat(t.r_value));
+  const rVals = closed.filter(t => t.r_value != null && t.r_value !== '').map(t => parseFloat(t.r_value)).filter(r => !isNaN(r));
   const avgR = rVals.length ? (rVals.reduce((a, b) => a + b, 0) / rVals.length).toFixed(2) : null;
   const avgWin = wins ? pnls.filter(p => p > 0).reduce((a, b) => a + b, 0) / wins : 0;
-  const losses = closed.length - wins;
+  const losses = pnls.filter(p => p < 0).length;
   const avgLoss = losses ? Math.abs(pnls.filter(p => p < 0).reduce((a, b) => a + b, 0) / losses) : 0;
   return { total, wins, losses, winRate, avgR, count: closed.length, avgWin, avgLoss };
 }
@@ -168,7 +169,8 @@ export default function App() {
 
   const PAGE_TITLES = {
     dashboard: 'Dashboard', trades: 'Trade Log', portfolio: 'Portfolio',
-    stats: 'Statistics', calendar: 'Calendar', review: 'Trade Review', journal: 'Journal', survey: 'Daily Check-in',
+    stats: 'Statistics', calendar: 'Calendar', review: 'Trade Review', charts: 'Chart Library',
+    journal: 'Journal', survey: 'Daily Check-in',
     scenarios: 'If / Then', learning: 'Learning', routine: 'Daily Routine',
     tax: 'Tax Report',
   };
@@ -286,6 +288,7 @@ export default function App() {
           {section === 'routine'   && <Routine />}
           {section === 'tax'       && <TaxReport />}
           {section === 'review'    && <TradeReview trades={trades} onUpdate={updateTrade} />}
+          {section === 'charts'    && <ChartLibrary trades={trades} onUpdate={updateTrade} />}
 
         </main>
       </div>
