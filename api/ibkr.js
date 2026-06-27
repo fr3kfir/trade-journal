@@ -6,8 +6,6 @@ const redis = new Redis({
   token: process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN,
 });
 
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
 function httpsGet(url) {
   return new Promise((resolve, reject) => {
     https.get(url, {
@@ -22,7 +20,6 @@ function httpsGet(url) {
   });
 }
 
-// Parse XML attributes into object — handles both <Tag .../> and <Tag ...>
 function parseXmlTrades(xml) {
   const trades = [];
   const tradeRegex = /<Trade\s([^>]+?)\/>/g;
@@ -39,100 +36,122 @@ function parseXmlTrades(xml) {
   return trades;
 }
 
+function buildTrades(all) {
+  const formatDate = (d) => {
+    if (!d) return '';
+    const s = d.split(';')[0].split(' ')[0].replace(/-/g, '');
+    if (s.length === 8) return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;
+    return d.split(';')[0].split(' ')[0];
+  };
+
+  const list = all.filter(t =>
+    t.openCloseIndicator && t.openCloseIndicator.includes('C') &&
+    t.fifoPnlRealized && parseFloat(t.fifoPnlRealized) !== 0
+  );
+
+  const trades = list.map(t => ({
+    id:         `ibkr-${t.tradeID || (t.symbol + t.dateTime + t.quantity)}`.replace(/[\s;,]/g, ''),
+    ticker:     t.symbol || '',
+    date:       formatDate(t.tradeDate || t.dateTime),
+    direction:  t.buySell === 'SELL' ? 'L' : 'S',
+    quantity:   Math.abs(parseFloat(t.quantity) || 0),
+    entry:      parseFloat(t.tradePrice) || null,
+    exit:       null,
+    stop:       null,
+    pnl:        parseFloat(t.fifoPnlRealized),
+    commission: Math.abs(parseFloat(t.ibCommission) || 0),
+    open_close: t.openCloseIndicator || '',
+    notes:      'IBKR import',
+  }));
+
+  const allDates = [...new Set(all.map(t => (t.tradeDate || t.dateTime || '').split(';')[0].split(' ')[0]))].sort();
+  const filteredOut = all.filter(t => !(
+    t.openCloseIndicator && t.openCloseIndicator.includes('C') &&
+    t.fifoPnlRealized && parseFloat(t.fifoPnlRealized) !== 0
+  )).map(t => ({
+    ticker: t.symbol,
+    date: (t.tradeDate || t.dateTime || '').split(';')[0].split(' ')[0],
+    openClose: t.openCloseIndicator,
+    pnl: t.fifoPnlRealized,
+  }));
+
+  return { trades, count: trades.length, debug: { totalFromIBKR: all.length, afterFilter: list.length, datesInReport: allDates, filteredOut } };
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Cache-Control', 'no-store');
 
-  // Load credentials: Redis takes priority over env vars
   const settings = await redis.get('settings').catch(() => ({})) || {};
-  const TOKEN    = settings.ibkrToken    || process.env.IBKR_TOKEN;
-  const QUERY_ID = settings.ibkrQueryId  || process.env.IBKR_QUERY_ID;
+  const TOKEN    = settings.ibkrToken   || process.env.IBKR_TOKEN;
+  const QUERY_ID = settings.ibkrQueryId || process.env.IBKR_QUERY_ID;
 
   if (!TOKEN || !QUERY_ID) {
     return res.status(500).json({ error: 'IBKR credentials not configured. Go to Settings in the app to add your token.' });
   }
 
+  const step = req.query?.step;
+
+  // ── Step 1: send request to IBKR, return refCode + dlUrl to client ──
+  if (step === 'request') {
+    try {
+      const r1 = await httpsGet(
+        `https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService/SendRequest?t=${TOKEN}&q=${QUERY_ID}&v=3`
+      );
+      if (r1.status !== 200 || r1.body.includes('Error 403') || r1.body.includes('Access Denied')) {
+        throw new Error(`SendRequest failed (${r1.status}): ${r1.body.slice(0, 200)}`);
+      }
+      const refCode = r1.body.match(/<ReferenceCode>(.*?)<\/ReferenceCode>/)?.[1];
+      const dlUrl   = r1.body.match(/<Url>(.*?)<\/Url>/)?.[1];
+      if (!refCode || !dlUrl) {
+        throw new Error('No reference code in response: ' + r1.body.slice(0, 300));
+      }
+      return res.status(200).json({ refCode, dlUrl });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
+  // ── Step 2: try once to download the report ──
+  if (step === 'download') {
+    const { refCode, dlUrl } = req.query;
+    if (!refCode || !dlUrl) return res.status(400).json({ error: 'Missing refCode or dlUrl' });
+    try {
+      const r2 = await httpsGet(`${dlUrl}?t=${TOKEN}&q=${refCode}&v=3`);
+      if (r2.body.includes('generation in progress') || r2.body.includes('Please wait') || r2.body.length < 50) {
+        return res.status(200).json({ pending: true });
+      }
+      const all = parseXmlTrades(r2.body);
+      return res.status(200).json(buildTrades(all));
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
+  // ── Legacy: single-call flow (used by GitHub Actions) ──
   try {
     const r1 = await httpsGet(
       `https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService/SendRequest?t=${TOKEN}&q=${QUERY_ID}&v=3`
     );
-
     if (r1.status !== 200 || r1.body.includes('Error 403') || r1.body.includes('Access Denied')) {
       throw new Error(`SendRequest failed (${r1.status}): ${r1.body.slice(0, 200)}`);
     }
-
     const refCode = r1.body.match(/<ReferenceCode>(.*?)<\/ReferenceCode>/)?.[1];
     const dlUrl   = r1.body.match(/<Url>(.*?)<\/Url>/)?.[1];
-
-    if (!refCode || !dlUrl) {
-      throw new Error('No reference code in response: ' + r1.body.slice(0, 300));
-    }
+    if (!refCode || !dlUrl) throw new Error('No reference code in response: ' + r1.body.slice(0, 300));
 
     let body = null;
     for (let i = 0; i < 10; i++) {
-      await sleep(i === 0 ? 5000 : 4000);
+      await new Promise(r => setTimeout(r, i === 0 ? 5000 : 4000));
       const r2 = await httpsGet(`${dlUrl}?t=${TOKEN}&q=${refCode}&v=3`);
       if (r2.body.includes('generation in progress') || r2.body.includes('Please wait')) continue;
       if (r2.status === 200 && r2.body.length > 50) { body = r2.body; break; }
     }
-
     if (!body) throw new Error('IBKR report not ready after 40s — try again in a moment');
 
     const all = parseXmlTrades(body);
-
-    // Filter closed trades with realized P&L (assetCategory not in this query's fields)
-    const list = all.filter(t =>
-      t.openCloseIndicator && t.openCloseIndicator.includes('C') &&
-      t.fifoPnlRealized && parseFloat(t.fifoPnlRealized) !== 0
-    );
-
-    const formatDate = (d) => {
-      if (!d) return '';
-      const s = d.split(';')[0].split(' ')[0].replace(/-/g, '');
-      if (s.length === 8) return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;
-      return d.split(';')[0].split(' ')[0];
-    };
-
-    const trades = list.map(t => ({
-      id:         `ibkr-${t.tradeID || (t.symbol + t.dateTime + t.quantity)}`.replace(/[\s;,]/g, ''),
-      ticker:     t.symbol || '',
-      date:       formatDate(t.tradeDate || t.dateTime),
-      // Closing a long = SELL, closing a short = BUY
-      direction:  t.buySell === 'SELL' ? 'L' : 'S',
-      quantity:   Math.abs(parseFloat(t.quantity) || 0),
-      entry:      parseFloat(t.tradePrice) || null,
-      exit:       null,
-      stop:       null,
-      pnl:        parseFloat(t.fifoPnlRealized),
-      commission: Math.abs(parseFloat(t.ibCommission) || 0),
-      open_close: t.openCloseIndicator || '',
-      notes:      'IBKR import',
-    }));
-
-    // Debug info: show raw counts and all dates seen before filtering
-    const allDates = [...new Set(all.map(t => (t.tradeDate || t.dateTime || '').split(';')[0].split(' ')[0]))].sort();
-    const filteredOut = all.filter(t => !(
-      t.openCloseIndicator && t.openCloseIndicator.includes('C') &&
-      t.fifoPnlRealized && parseFloat(t.fifoPnlRealized) !== 0
-    )).map(t => ({
-      ticker: t.symbol,
-      date: (t.tradeDate || t.dateTime || '').split(';')[0].split(' ')[0],
-      openClose: t.openCloseIndicator,
-      pnl: t.fifoPnlRealized,
-    }));
-
-    return res.status(200).json({
-      trades,
-      count: trades.length,
-      debug: {
-        totalFromIBKR: all.length,
-        afterFilter: list.length,
-        datesInReport: allDates,
-        filteredOut,
-      },
-    });
-
+    return res.status(200).json(buildTrades(all));
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }

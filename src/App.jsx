@@ -81,15 +81,22 @@ export default function App() {
     if (lastSync !== today) {
       const autoSync = async () => {
         try {
-          const r = await fetch('/api/ibkr');
-          const d = await r.json();
-          if (!d.error) {
-            const count = importTrades(d.trades || []);
+          const r1 = await fetch('/api/ibkr?step=request');
+          const d1 = await r1.json();
+          if (d1.error) return;
+          const { refCode, dlUrl } = d1;
+          for (let i = 0; i < 15; i++) {
+            await new Promise(r => setTimeout(r, 5000));
+            const r2 = await fetch(`/api/ibkr?step=download&refCode=${encodeURIComponent(refCode)}&dlUrl=${encodeURIComponent(dlUrl)}`);
+            const d2 = await r2.json();
+            if (d2.error || d2.pending) continue;
+            const count = importTrades(d2.trades || []);
             if (count > 0) {
               setImportMsg(`Auto-synced ${count} new trades from IBKR`);
               setTimeout(() => setImportMsg(''), 5000);
             }
             localStorage.setItem('ibkr_last_auto_sync', today);
+            break;
           }
         } catch {}
       };
@@ -148,13 +155,27 @@ export default function App() {
   const handleManualSync = async () => {
     setSyncing(true);
     try {
-      const r = await fetch('/api/ibkr');
-      const d = await r.json();
-      if (d.error) throw new Error(d.error);
-      const count = importTrades(d.trades || []);
-      setImportMsg(`${d.count} trades synced from IBKR`);
+      // Step 1: ask IBKR to generate the report
+      const r1 = await fetch('/api/ibkr?step=request');
+      const d1 = await r1.json();
+      if (d1.error) throw new Error(d1.error);
+      const { refCode, dlUrl } = d1;
+
+      // Step 2: poll the browser side until the report is ready (up to ~75s)
+      let data = null;
+      for (let i = 0; i < 15; i++) {
+        await new Promise(r => setTimeout(r, i === 0 ? 5000 : 5000));
+        const r2 = await fetch(`/api/ibkr?step=download&refCode=${encodeURIComponent(refCode)}&dlUrl=${encodeURIComponent(dlUrl)}`);
+        const d2 = await r2.json();
+        if (d2.error) throw new Error(d2.error);
+        if (!d2.pending) { data = d2; break; }
+      }
+      if (!data) throw new Error('Report took too long — try again in a moment');
+
+      importTrades(data.trades || []);
+      setImportMsg(`${data.count} trades synced from IBKR`);
     } catch (e) { setImportMsg(`Sync failed: ${e.message}`); }
-    finally { setSyncing(false); setTimeout(() => setImportMsg(''), 5000); }
+    finally { setSyncing(false); setTimeout(() => setImportMsg(''), 6000); }
   };
 
   const handleExcelExport = async () => {
