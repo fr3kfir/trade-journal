@@ -102,6 +102,9 @@ export default async function handler(req, res) {
       if (r1.status !== 200 || r1.body.includes('Error 403') || r1.body.includes('Access Denied')) {
         throw new Error(`SendRequest failed (${r1.status}): ${r1.body.slice(0, 200)}`);
       }
+      // Detect IBKR-level errors (token invalid, query not found, etc.)
+      const ibkrError = r1.body.match(/<ErrorMessage>(.*?)<\/ErrorMessage>/)?.[1];
+      if (ibkrError) throw new Error(`IBKR: ${ibkrError} — go to ⚙️ Settings and update your token`);
       const refCode = r1.body.match(/<ReferenceCode>(.*?)<\/ReferenceCode>/)?.[1];
       const dlUrl   = r1.body.match(/<Url>(.*?)<\/Url>/)?.[1];
       if (!refCode || !dlUrl) {

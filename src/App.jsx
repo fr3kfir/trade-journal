@@ -237,7 +237,7 @@ export default function App() {
               >
                 {syncing ? '⟳' : '⇅'} {syncing ? 'Syncing…' : 'Sync'}
               </button>
-              {importMsg && <span style={{ fontSize: 12, color: 'var(--green)', fontWeight: 500 }} className="hide-mobile">{importMsg}</span>}
+              {importMsg && <span style={{ fontSize: 12, color: importMsg.startsWith('Sync failed') ? 'var(--red)' : 'var(--green)', fontWeight: 500 }}>{importMsg}</span>}
               <button className="btn btn-ghost hide-mobile" onClick={() => setShowSettings(true)} style={{ fontSize: 12 }}>⚙️ IBKR</button>
               <button className="btn btn-ghost hide-mobile" onClick={() => { if(confirm('Delete all IBKR trades?')) { clearIbkrTrades(); setImportMsg('IBKR trades cleared'); setTimeout(() => setImportMsg(''), 3000); }}} style={{ fontSize: 12, color: 'var(--red)' }}>Clear IBKR</button>
               <button className="btn btn-ghost hide-mobile" onClick={() => setShowExcelModal(true)} style={{ fontSize: 12, color: '#34d399' }}>📊 Excel</button>
