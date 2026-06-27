@@ -81,10 +81,9 @@ export default async function handler(req, res) {
 
     const all = parseXmlTrades(body);
 
-    // Filter closed trades with realized P&L (assetCategory not in this query's fields)
+    // Filter valid trades — include both opening and closing trades
     const list = all.filter(t =>
-      t.openCloseIndicator && t.openCloseIndicator.includes('C') &&
-      t.fifoPnlRealized && parseFloat(t.fifoPnlRealized) !== 0
+      t.symbol && t.quantity && parseFloat(t.quantity) !== 0
     );
 
     const formatDate = (d) => {
@@ -104,7 +103,9 @@ export default async function handler(req, res) {
       entry:      parseFloat(t.tradePrice) || null,
       exit:       null,
       stop:       null,
-      pnl:        parseFloat(t.fifoPnlRealized),
+      pnl:        t.openCloseIndicator?.includes('C') && t.fifoPnlRealized
+                    ? parseFloat(t.fifoPnlRealized)
+                    : null,
       commission: Math.abs(parseFloat(t.ibCommission) || 0),
       open_close: t.openCloseIndicator || '',
       notes:      'IBKR import',
