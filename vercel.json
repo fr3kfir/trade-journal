@@ -4,7 +4,7 @@
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "functions": {
-    "api/ibkr.js":     { "maxDuration": 30 },
+    "api/ibkr.js":     { "maxDuration": 60 },
     "api/screener.js": { "maxDuration": 30 },
     "api/cot.js":      { "maxDuration": 15 }
   }

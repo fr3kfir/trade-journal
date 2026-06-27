@@ -70,14 +70,14 @@ export default async function handler(req, res) {
     }
 
     let body = null;
-    for (let i = 0; i < 5; i++) {
-      await sleep(4000);
+    for (let i = 0; i < 10; i++) {
+      await sleep(i === 0 ? 5000 : 4000);
       const r2 = await httpsGet(`${dlUrl}?t=${TOKEN}&q=${refCode}&v=3`);
       if (r2.body.includes('generation in progress') || r2.body.includes('Please wait')) continue;
       if (r2.status === 200 && r2.body.length > 50) { body = r2.body; break; }
     }
 
-    if (!body) throw new Error('IBKR report not ready after 20s — try again in a moment');
+    if (!body) throw new Error('IBKR report not ready after 40s — try again in a moment');
 
     const all = parseXmlTrades(body);
 
