@@ -110,7 +110,28 @@ export default async function handler(req, res) {
       notes:      'IBKR import',
     }));
 
-    return res.status(200).json({ trades, count: trades.length });
+    // Debug info: show raw counts and all dates seen before filtering
+    const allDates = [...new Set(all.map(t => (t.tradeDate || t.dateTime || '').split(';')[0].split(' ')[0]))].sort();
+    const filteredOut = all.filter(t => !(
+      t.openCloseIndicator && t.openCloseIndicator.includes('C') &&
+      t.fifoPnlRealized && parseFloat(t.fifoPnlRealized) !== 0
+    )).map(t => ({
+      ticker: t.symbol,
+      date: (t.tradeDate || t.dateTime || '').split(';')[0].split(' ')[0],
+      openClose: t.openCloseIndicator,
+      pnl: t.fifoPnlRealized,
+    }));
+
+    return res.status(200).json({
+      trades,
+      count: trades.length,
+      debug: {
+        totalFromIBKR: all.length,
+        afterFilter: list.length,
+        datesInReport: allDates,
+        filteredOut,
+      },
+    });
 
   } catch (err) {
     return res.status(500).json({ error: err.message });
