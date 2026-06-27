@@ -93,6 +93,23 @@ export default async function handler(req, res) {
 
   const step = req.query?.step;
 
+  // ── Diagnostic: show what token is loaded and test IBKR ──
+  if (step === 'test') {
+    const tokenPreview = TOKEN ? TOKEN.slice(0, 6) + '...' + TOKEN.slice(-4) : null;
+    const tokenSource  = (await redis.get('settings').catch(() => ({})) || {}).ibkrToken
+      ? 'redis' : 'env-var';
+    try {
+      const r = await httpsGet(
+        `https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService/SendRequest?t=${TOKEN}&q=${QUERY_ID}&v=3`
+      );
+      const ibkrError = r.body.match(/<ErrorMessage>(.*?)<\/ErrorMessage>/)?.[1];
+      const refCode   = r.body.match(/<ReferenceCode>(.*?)<\/ReferenceCode>/)?.[1];
+      return res.status(200).json({ tokenSource, tokenPreview, queryId: QUERY_ID, ibkrError: ibkrError || null, refCode: refCode || null, raw: r.body.slice(0, 300) });
+    } catch (err) {
+      return res.status(200).json({ tokenSource, tokenPreview, queryId: QUERY_ID, error: err.message });
+    }
+  }
+
   // ── Step 1: send request to IBKR, return refCode + dlUrl to client ──
   if (step === 'request') {
     try {
