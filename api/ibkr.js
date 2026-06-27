@@ -20,20 +20,60 @@ function httpsGet(url) {
   });
 }
 
-function parseXmlTrades(xml) {
-  const trades = [];
-  const tradeRegex = /<Trade\s([^>]+?)\/>/g;
+function parseXmlAttrs(xml, tag) {
+  const results = [];
+  const re = new RegExp(`<${tag}\\s([^>]+?)\\/>`, 'g');
   let match;
-  while ((match = tradeRegex.exec(xml)) !== null) {
+  while ((match = re.exec(xml)) !== null) {
     const attrs = {};
-    const attrRegex = /(\w+)="([^"]*)"/g;
+    const attrRe = /(\w+)="([^"]*)"/g;
     let a;
-    while ((a = attrRegex.exec(match[1])) !== null) {
-      attrs[a[1]] = a[2];
-    }
-    if (Object.keys(attrs).length > 0) trades.push(attrs);
+    while ((a = attrRe.exec(match[1])) !== null) attrs[a[1]] = a[2];
+    if (Object.keys(attrs).length > 0) results.push(attrs);
   }
-  return trades;
+  return results;
+}
+
+function parseXmlTrades(xml)     { return parseXmlAttrs(xml, 'Trade'); }
+function parseXmlPositions(xml)  { return parseXmlAttrs(xml, 'OpenPosition').filter(p => p.levelOfDetail === 'SUMMARY'); }
+
+function parseAccountNAV(xml) {
+  // Try EquitySummaryByReportDateInBase (most common)
+  const m = xml.match(/<EquitySummaryByReportDateInBase\s([^>]+?)\/>/);
+  if (m) {
+    const t = m[1].match(/\btotal="([^"]+)"/);
+    if (t) return parseFloat(t[1]);
+  }
+  // Fallback: CashReport totalValue
+  const c = xml.match(/\btotalValue="([\d.]+)"/);
+  if (c) return parseFloat(c[1]);
+  return null;
+}
+
+function buildPositions(raw, nav) {
+  const positions = raw.map(p => ({
+    symbol:        p.symbol || '',
+    description:   p.description || '',
+    quantity:      parseFloat(p.position)           || 0,
+    markPrice:     parseFloat(p.markPrice)          || 0,
+    costBasis:     parseFloat(p.costBasisPrice)     || 0,
+    positionValue: parseFloat(p.positionValue)      || 0,
+    unrealizedPnl: parseFloat(p.fifoPnlUnrealized)  || 0,
+    pctOfNAV:      parseFloat(p.percentOfNAV)       || 0,
+    side:          p.side || (parseFloat(p.position) > 0 ? 'Long' : 'Short'),
+    currency:      p.currency || 'USD',
+  })).filter(p => p.symbol && p.quantity !== 0);
+
+  const totalUnrealized = positions.reduce((s, p) => s + p.unrealizedPnl, 0);
+  const totalExposure   = positions.reduce((s, p) => s + Math.abs(p.positionValue), 0);
+
+  return {
+    positions,
+    nav:            nav || null,
+    totalUnrealized: parseFloat(totalUnrealized.toFixed(2)),
+    totalExposure:   parseFloat(totalExposure.toFixed(2)),
+    updatedAt:       new Date().toISOString(),
+  };
 }
 
 function buildTrades(all) {
@@ -93,6 +133,12 @@ export default async function handler(req, res) {
 
   const step = req.query?.step;
 
+  // ── Return cached portfolio snapshot from Redis ──
+  if (step === 'portfolio') {
+    const data = await redis.get('ibkr_portfolio').catch(() => null);
+    return res.status(200).json(data || { positions: [], nav: null, totalUnrealized: 0, totalExposure: 0, updatedAt: null });
+  }
+
   // ── Diagnostic: show what token is loaded and test IBKR ──
   if (step === 'test') {
     const tokenPreview = TOKEN ? TOKEN.slice(0, 6) + '...' + TOKEN.slice(-4) : null;
@@ -142,8 +188,17 @@ export default async function handler(req, res) {
       if (r2.body.includes('generation in progress') || r2.body.includes('Please wait') || r2.body.length < 50) {
         return res.status(200).json({ pending: true });
       }
-      const all = parseXmlTrades(r2.body);
-      return res.status(200).json(buildTrades(all));
+      const allTrades    = parseXmlTrades(r2.body);
+      const rawPositions = parseXmlPositions(r2.body);
+      const nav          = parseAccountNAV(r2.body);
+      const portfolio    = buildPositions(rawPositions, nav);
+
+      // Save portfolio snapshot to Redis (fire-and-forget)
+      if (portfolio.positions.length > 0 || nav) {
+        redis.set('ibkr_portfolio', portfolio).catch(() => {});
+      }
+
+      return res.status(200).json({ ...buildTrades(allTrades), portfolio });
     } catch (err) {
       return res.status(500).json({ error: err.message });
     }
@@ -170,8 +225,14 @@ export default async function handler(req, res) {
     }
     if (!body) throw new Error('IBKR report not ready after 40s — try again in a moment');
 
-    const all = parseXmlTrades(body);
-    return res.status(200).json(buildTrades(all));
+    const allTrades    = parseXmlTrades(body);
+    const rawPositions = parseXmlPositions(body);
+    const nav          = parseAccountNAV(body);
+    const portfolio    = buildPositions(rawPositions, nav);
+    if (portfolio.positions.length > 0 || nav) {
+      redis.set('ibkr_portfolio', portfolio).catch(() => {});
+    }
+    return res.status(200).json({ ...buildTrades(allTrades), portfolio });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
