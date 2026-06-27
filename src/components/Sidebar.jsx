@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, TrendingUp, Briefcase, BarChart2,
-  BookOpen, ClipboardCheck, Zap, GraduationCap, CheckSquare, ChevronRight, X, Receipt, FileSpreadsheet, StickyNote, CalendarDays, Images
+  BookOpen, ClipboardCheck, Zap, GraduationCap, CheckSquare, ChevronRight, X, Receipt, FileSpreadsheet, StickyNote, CalendarDays, Images, Globe,
 } from 'lucide-react';
 
 const SECTIONS = [
@@ -15,10 +15,11 @@ const SECTIONS = [
   {
     group: 'ANALYTICS',
     items: [
-      { key: 'stats',    label: 'Statistics',    icon: BarChart2  },
+      { key: 'stats',    label: 'Statistics',    icon: BarChart2   },
       { key: 'calendar', label: 'Calendar',      icon: CalendarDays },
       { key: 'review',   label: 'Trade Review',  icon: StickyNote },
       { key: 'charts',   label: 'Chart Library', icon: Images },
+      { key: 'market',   label: 'Market',        icon: Globe },
     ],
   },
   {

@@ -19,6 +19,7 @@ import TaxReport from './components/TaxReport';
 import TradeReview from './components/TradeReview';
 import CalendarView from './components/CalendarView';
 import ChartLibrary from './components/ChartLibrary';
+import Market from './components/Market';
 import SettingsModal from './components/SettingsModal';
 
 const TF_RANGES = ['1W', '1M', '3M', 'YTD', 'ALL'];
@@ -172,7 +173,7 @@ export default function App() {
     stats: 'Statistics', calendar: 'Calendar', review: 'Trade Review', charts: 'Chart Library',
     journal: 'Journal', survey: 'Daily Check-in',
     scenarios: 'If / Then', learning: 'Learning', routine: 'Daily Routine',
-    tax: 'Tax Report',
+    tax: 'Tax Report', market: 'Market',
   };
 
   const BOTTOM_NAV = [
@@ -289,6 +290,7 @@ export default function App() {
           {section === 'tax'       && <TaxReport />}
           {section === 'review'    && <TradeReview trades={trades} onUpdate={updateTrade} />}
           {section === 'charts'    && <ChartLibrary trades={trades} onUpdate={updateTrade} />}
+          {section === 'market'    && <Market />}
 
         </main>
       </div>
