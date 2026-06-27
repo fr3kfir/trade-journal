@@ -37,7 +37,8 @@ function filterByTimeframe(trades, tf) {
 
 function calcSummary(trades) {
   const closed = trades.filter(t => t.pnl != null);
-  const pnls = closed.map(t => parseFloat(t.pnl));
+  // Net P&L = gross pnl minus commission (for IBKR trades)
+  const pnls = closed.map(t => parseFloat(t.pnl) - (parseFloat(t.commission) || 0));
   const total = pnls.reduce((a, b) => a + b, 0);
   const wins = pnls.filter(p => p > 0).length;
   const winRate = closed.length ? (wins / closed.length * 100).toFixed(1) : '0.0';
@@ -172,8 +173,8 @@ export default function App() {
       }
       if (!data) throw new Error('Report took too long — try again in a moment');
 
-      importTrades(data.trades || []);
-      setImportMsg(`${data.count} trades synced from IBKR`);
+      const newCount = importTrades(data.trades || []);
+      setImportMsg(newCount > 0 ? `+${newCount} new trades added from IBKR` : `Sync complete — no new trades`);
     } catch (e) { setImportMsg(`Sync failed: ${e.message}`); }
     finally { setSyncing(false); setTimeout(() => setImportMsg(''), 6000); }
   };
