@@ -15,7 +15,7 @@ const MARKET_CONDITIONS = [
 ];
 
 const EMPTY = {
-  ticker: '', date: '', direction: 'L',
+  ticker: '', date: '', time: '', direction: 'L',
   entry: '', exit: '', stop: '', quantity: '',
   pnl: '', r_value: '', commission: '', setup: '',
   market_condition: '',
@@ -149,11 +149,14 @@ export default function TradeModal({ trade, onSave, onClose }) {
           <Section title="📋 פרטי עסקה" accent="#6366f1">
             {/* Ticker + Date + Direction */}
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <Field label="Ticker" half>
+              <Field label="Ticker">
                 <input className="input" value={form.ticker} onChange={e => set('ticker', e.target.value.toUpperCase())} placeholder="AAPL" required style={{ fontWeight: 700, fontSize: 15 }} />
               </Field>
-              <Field label="תאריך" half>
+              <Field label="תאריך">
                 <input className="input" type="date" value={form.date} onChange={e => set('date', e.target.value)} required />
+              </Field>
+              <Field label="שעת ביצוע (NY)">
+                <input className="input" type="time" value={form.time || ''} onChange={e => set('time', e.target.value)} />
               </Field>
             </div>
 

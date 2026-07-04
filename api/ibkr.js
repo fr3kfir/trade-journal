@@ -84,6 +84,16 @@ function buildTrades(all) {
     return d.split(';')[0].split(' ')[0];
   };
 
+  // IBKR dateTime looks like "20250101;093015" or "2025-01-01 09:30:15" — extract "HH:MM"
+  const formatTime = (d) => {
+    if (!d) return '';
+    const part = d.includes(';') ? d.split(';')[1] : d.split(' ')[1];
+    if (!part) return '';
+    const s = part.replace(/:/g, '').trim();
+    if (s.length >= 4 && /^\d+$/.test(s.slice(0, 4))) return `${s.slice(0, 2)}:${s.slice(2, 4)}`;
+    return '';
+  };
+
   const list = all.filter(t =>
     t.openCloseIndicator && t.openCloseIndicator.includes('C') &&
     t.fifoPnlRealized && parseFloat(t.fifoPnlRealized) !== 0
@@ -93,6 +103,7 @@ function buildTrades(all) {
     id:         `ibkr-${t.tradeID || (t.symbol + t.dateTime + t.quantity)}`.replace(/[\s;,]/g, ''),
     ticker:     t.symbol || '',
     date:       formatDate(t.tradeDate || t.dateTime),
+    time:       formatTime(t.dateTime || t.tradeTime),
     direction:  t.buySell === 'SELL' ? 'L' : 'S',
     quantity:   Math.abs(parseFloat(t.quantity) || 0),
     entry:      parseFloat(t.tradePrice) || null,

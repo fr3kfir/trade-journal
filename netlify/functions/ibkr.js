@@ -5,6 +5,15 @@ const CORS = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+// IBKR dateTime looks like "20250101;093015" or "2025-01-01 09:30:15" — extract "HH:MM"
+function formatTime(d) {
+  if (!d) return '';
+  const part = d.includes(';') ? d.split(';')[1] : d.split(' ')[1];
+  if (!part) return '';
+  const s = part.replace(/:/g, '').trim();
+  return s.length >= 4 && /^\d+$/.test(s.slice(0, 4)) ? `${s.slice(0, 2)}:${s.slice(2, 4)}` : '';
+}
+
 function httpsGet(url) {
   return new Promise((resolve, reject) => {
     const https = require('https');
@@ -67,6 +76,7 @@ exports.handler = async () => {
         id:         `ibkr-${t.symbol}-${t.dateTime}-${t.quantity}`.replace(/\s/g, ''),
         ticker:     t.symbol || '',
         date:       (t.dateTime || '').split(';')[0].split(' ')[0],
+        time:       formatTime(t.dateTime),
         direction:  (t.buySell || 'BUY') === 'BUY' ? 'L' : 'S',
         quantity:   Math.abs(parseFloat(t.quantity) || 0),
         entry:      parseFloat(t.tradePrice) || null,

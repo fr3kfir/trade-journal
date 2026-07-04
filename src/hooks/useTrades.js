@@ -92,8 +92,17 @@ export function useTrades() {
     setTrades(prev => {
       const prevIds = new Set(prev.map(t => t.id));
       fresh = incoming.filter(t => !prevIds.has(t.id));
-      if (!fresh.length) return prev;
-      return [...fresh, ...prev].sort((a, b) => new Date(b.date) - new Date(a.date));
+      // Backfill execution time onto already-imported trades that were saved before
+      // the time field existed (id match, no time stored yet)
+      const incomingById = new Map(incoming.map(t => [t.id, t]));
+      let patchedAny = false;
+      const patched = prev.map(t => {
+        const inc = incomingById.get(t.id);
+        if (inc?.time && !t.time) { patchedAny = true; return { ...t, time: inc.time }; }
+        return t;
+      });
+      if (!fresh.length) return patchedAny ? patched : prev;
+      return [...fresh, ...patched].sort((a, b) => new Date(b.date) - new Date(a.date));
     });
     // Auto-screenshot all fresh trades, staggered to avoid hammering the server
     setTimeout(() => {
