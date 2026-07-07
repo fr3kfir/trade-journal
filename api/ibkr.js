@@ -84,38 +84,36 @@ function buildTrades(all) {
     return d.split(';')[0].split(' ')[0];
   };
 
-  const list = all.filter(t =>
-    t.openCloseIndicator && t.openCloseIndicator.includes('C') &&
-    t.fifoPnlRealized && parseFloat(t.fifoPnlRealized) !== 0
-  );
+  // Import every stock execution: closing trades carry realized P&L (even 0),
+  // opening trades come in with pnl=null so the UI treats them as open legs.
+  const list = all.filter(t => t.symbol && (t.assetCategory === 'STK' || !t.assetCategory));
 
-  const trades = list.map(t => ({
-    id:         `ibkr-${t.tradeID || (t.symbol + t.dateTime + t.quantity)}`.replace(/[\s;,]/g, ''),
-    ticker:     t.symbol || '',
-    date:       formatDate(t.tradeDate || t.dateTime),
-    direction:  t.buySell === 'SELL' ? 'L' : 'S',
-    quantity:   Math.abs(parseFloat(t.quantity) || 0),
-    entry:      parseFloat(t.tradePrice) || null,
-    exit:       null,
-    stop:       null,
-    pnl:        parseFloat(t.fifoPnlRealized),
-    commission: Math.abs(parseFloat(t.ibCommission) || 0),
-    open_close: t.openCloseIndicator || '',
-    notes:      'IBKR import',
-  }));
+  const trades = list.map(t => {
+    const isClose = (t.openCloseIndicator || '').includes('C');
+    const hasPnl  = isClose && t.fifoPnlRealized !== undefined && t.fifoPnlRealized !== '';
+    const isBuy   = t.buySell !== 'SELL';
+    return {
+      id:         `ibkr-${t.tradeID || (t.symbol + t.dateTime + t.quantity)}`.replace(/[\s;,]/g, ''),
+      ticker:     t.symbol || '',
+      date:       formatDate(t.tradeDate || t.dateTime),
+      // A SELL that closes was a long; a BUY that opens is a long
+      direction:  isClose ? (isBuy ? 'S' : 'L') : (isBuy ? 'L' : 'S'),
+      quantity:   Math.abs(parseFloat(t.quantity) || 0),
+      entry:      parseFloat(t.tradePrice) || null,
+      exit:       null,
+      stop:       null,
+      pnl:        hasPnl ? parseFloat(t.fifoPnlRealized) : null,
+      commission: Math.abs(parseFloat(t.ibCommission) || 0),
+      open_close: t.openCloseIndicator || '',
+      notes:      isClose ? 'IBKR import' : 'IBKR import — opening leg',
+    };
+  });
 
   const allDates = [...new Set(all.map(t => (t.tradeDate || t.dateTime || '').split(';')[0].split(' ')[0]))].sort();
-  const filteredOut = all.filter(t => !(
-    t.openCloseIndicator && t.openCloseIndicator.includes('C') &&
-    t.fifoPnlRealized && parseFloat(t.fifoPnlRealized) !== 0
-  )).map(t => ({
-    ticker: t.symbol,
-    date: (t.tradeDate || t.dateTime || '').split(';')[0].split(' ')[0],
-    openClose: t.openCloseIndicator,
-    pnl: t.fifoPnlRealized,
-  }));
+  const opens  = trades.filter(t => t.pnl == null).length;
+  const closes = trades.length - opens;
 
-  return { trades, count: trades.length, debug: { totalFromIBKR: all.length, afterFilter: list.length, datesInReport: allDates, filteredOut } };
+  return { trades, count: trades.length, debug: { totalFromIBKR: all.length, imported: trades.length, opens, closes, datesInReport: allDates } };
 }
 
 export default async function handler(req, res) {
