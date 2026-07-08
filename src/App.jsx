@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { exportMonthlyExcel } from './utils/exportExcel';
+import { runServerSync } from './utils/ibkrSync';
 import { Menu, LayoutDashboard, TrendingUp, BarChart2, BookOpen, MoreHorizontal, Eye, EyeOff, Moon, Sun } from 'lucide-react';
 import { useTrades } from './hooks/useTrades';
 import Sidebar from './components/Sidebar';
@@ -54,7 +55,7 @@ function calcSummary(trades) {
 }
 
 export default function App() {
-  const { trades, addTrade, updateTrade, deleteTrade, importTrades, clearIbkrTrades } = useTrades();
+  const { trades, ready, addTrade, updateTrade, deleteTrade, importTrades, clearIbkrTrades, reloadFromServer } = useTrades();
   const [section, setSection] = useState('dashboard');
   const [showAdd, setShowAdd] = useState(false);
   const [showImport, setShowImport] = useState(false);
@@ -78,35 +79,28 @@ export default function App() {
   const filteredTrades = filterByTimeframe(trades, dashTimeframe);
   const s = calcSummary(filteredTrades);
 
-  // Auto daily IBKR sync — runs once per day automatically
+  // Auto daily IBKR sync — waits for the initial load, then asks the server
+  // to sync once per day. The cron/GitHub Action usually got there first, so
+  // this is only a fallback.
   useEffect(() => {
+    if (!ready) return;
     const today = new Date().toISOString().slice(0, 10);
-    const lastSync = localStorage.getItem('ibkr_last_auto_sync');
-    if (lastSync !== today) {
-      const autoSync = async () => {
-        try {
-          const r1 = await fetch('/api/ibkr?step=request');
-          const d1 = await r1.json();
-          if (d1.error) return;
-          const { refCode, dlUrl } = d1;
-          for (let i = 0; i < 15; i++) {
-            await new Promise(r => setTimeout(r, 5000));
-            const r2 = await fetch(`/api/ibkr?step=download&refCode=${encodeURIComponent(refCode)}&dlUrl=${encodeURIComponent(dlUrl)}`);
-            const d2 = await r2.json();
-            if (d2.error || d2.pending) continue;
-            const count = importTrades(d2.trades || []);
-            if (count > 0) {
-              setImportMsg(`Auto-synced ${count} new trades from IBKR`);
-              setTimeout(() => setImportMsg(''), 5000);
-            }
-            localStorage.setItem('ibkr_last_auto_sync', today);
-            break;
-          }
-        } catch {}
-      };
-      autoSync();
-    }
-  }, []);
+    if (localStorage.getItem('ibkr_last_auto_sync') === today) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const d = await runServerSync();
+        if (cancelled) return;
+        localStorage.setItem('ibkr_last_auto_sync', today);
+        await reloadFromServer();
+        if (d.added > 0) {
+          setImportMsg(`Auto-synced ${d.added} new trades from IBKR`);
+          setTimeout(() => setImportMsg(''), 5000);
+        }
+      } catch { /* no credentials or IBKR down — retried on next visit */ }
+    })();
+    return () => { cancelled = true; };
+  }, [ready, reloadFromServer]);
 
   useEffect(() => {
     // Catch migration data from URL hash
@@ -119,9 +113,9 @@ export default function App() {
           setTimeout(() => setImportMsg(''), 5000);
           window.history.replaceState(null, '', window.location.pathname);
         }
-      } catch {}
+      } catch { /* not migration data — ignore */ }
     }
-  }, []);
+  }, [importTrades]);
 
   const handleExportBackup = () => {
     const data = JSON.stringify(trades, null, 2);
@@ -159,25 +153,12 @@ export default function App() {
   const handleManualSync = async () => {
     setSyncing(true);
     try {
-      // Step 1: ask IBKR to generate the report
-      const r1 = await fetch('/api/ibkr?step=request');
-      const d1 = await r1.json();
-      if (d1.error) throw new Error(d1.error);
-      const { refCode, dlUrl } = d1;
-
-      // Step 2: poll the browser side until the report is ready (up to ~75s)
-      let data = null;
-      for (let i = 0; i < 15; i++) {
-        await new Promise(r => setTimeout(r, i === 0 ? 5000 : 5000));
-        const r2 = await fetch(`/api/ibkr?step=download&refCode=${encodeURIComponent(refCode)}&dlUrl=${encodeURIComponent(dlUrl)}`);
-        const d2 = await r2.json();
-        if (d2.error) throw new Error(d2.error);
-        if (!d2.pending) { data = d2; break; }
-      }
-      if (!data) throw new Error('Report took too long — try again in a moment');
-
-      const newCount = importTrades(data.trades || []);
-      setImportMsg(newCount > 0 ? `+${newCount} new trades added from IBKR` : `Sync complete — no new trades`);
+      const d = await runServerSync();
+      await reloadFromServer();
+      localStorage.setItem('ibkr_last_auto_sync', new Date().toISOString().slice(0, 10));
+      setImportMsg(d.added > 0
+        ? `+${d.added} new trades added from IBKR${d.updated ? `, ${d.updated} updated` : ''}`
+        : `Sync complete — no new trades`);
     } catch (e) { setImportMsg(`Sync failed: ${e.message}`); }
     finally { setSyncing(false); setTimeout(() => setImportMsg(''), 6000); }
   };
@@ -243,7 +224,7 @@ export default function App() {
               </button>
               {importMsg && <span style={{ fontSize: 12, color: importMsg.startsWith('Sync failed') ? 'var(--red)' : 'var(--green)', fontWeight: 500 }}>{importMsg}</span>}
               <button className="btn btn-ghost hide-mobile" onClick={() => setShowSettings(true)} style={{ fontSize: 12 }}>⚙️ IBKR</button>
-              <button className="btn btn-ghost hide-mobile" onClick={() => { if(confirm('Delete all IBKR trades?')) { clearIbkrTrades(); setImportMsg('IBKR trades cleared'); setTimeout(() => setImportMsg(''), 3000); }}} style={{ fontSize: 12, color: 'var(--red)' }}>Clear IBKR</button>
+              <button className="btn btn-ghost hide-mobile" onClick={() => { if(confirm('Delete all IBKR trades? They will be re-imported on the next sync.')) { clearIbkrTrades(); setImportMsg('IBKR trades cleared'); setTimeout(() => setImportMsg(''), 3000); }}} style={{ fontSize: 12, color: 'var(--red)' }}>Clear IBKR</button>
               <button className="btn btn-ghost hide-mobile" onClick={() => setShowExcelModal(true)} style={{ fontSize: 12, color: '#34d399' }}>📊 Excel</button>
               <button className="btn btn-ghost hide-mobile" onClick={handleExportBackup} style={{ fontSize: 12 }}>Export</button>
               <label className="btn btn-ghost" style={{ fontSize: 12, cursor: 'pointer' }}>

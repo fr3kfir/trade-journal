@@ -101,7 +101,7 @@ function EquityCurve({ points, width = 700, height = 220 }) {
 
 // ── SVG Bar Chart ─────────────────────────────────────────────────────────────
 
-function BarChart({ data, valueKey, colorFn, label, fmt, width = 500, height = 160 }) {
+function BarChart({ data, valueKey, colorFn, fmt, width = 500, height = 160 }) {
   if (!data.length) return null;
   const pad = { top: 10, right: 10, bottom: 40, left: 50 };
   const W = width  - pad.left - pad.right;
@@ -205,10 +205,13 @@ export default function Analytics({ trades }) {
   }, [trades, tf]);
 
   // Equity curve points
-  const equityPoints = useMemo(() => {
-    let cum = 0;
-    return closed.map(t => { cum += netPnl(t); return { date: t.date, cum: parseFloat(cum.toFixed(2)) }; });
-  }, [closed]);
+  const equityPoints = useMemo(() =>
+    closed.reduce((acc, t) => {
+      const prev = acc.length ? acc[acc.length - 1].cum : 0;
+      acc.push({ date: t.date, cum: parseFloat((prev + netPnl(t)).toFixed(2)) });
+      return acc;
+    }, []),
+  [closed]);
 
   // Overall stats
   const stats = useMemo(() => {
@@ -231,7 +234,7 @@ export default function Analytics({ trades }) {
     for (const p of pnls) { cum += p; if (cum > peak) peak = cum; maxDD = Math.max(maxDD, peak - cum); }
 
     // Best/worst streaks
-    let streak = 0, maxWin = 0, maxLoss = 0, curWin = 0, curLoss = 0;
+    let maxWin = 0, maxLoss = 0, curWin = 0, curLoss = 0;
     for (const p of pnls) {
       if (p > 0) { curWin++; curLoss = 0; maxWin = Math.max(maxWin, curWin); }
       else        { curLoss++; curWin = 0; maxLoss = Math.max(maxLoss, curLoss); }

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ChevronDown, ChevronRight, RefreshCw, Zap, Layers, TrendingUp, Filter } from 'lucide-react';
-import { CLIP_COLORS, CLIP_BG } from './ClipboardPanel';
+import { CLIP_COLORS, CLIP_BG } from './constants';
 
 /* ─── SMALL COMPONENTS ───────────────────────────────────────────────── */
 

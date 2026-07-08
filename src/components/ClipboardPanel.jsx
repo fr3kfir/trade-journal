@@ -7,8 +7,6 @@ const TABS = [
   { key: 'universe', label: 'Universe', color: '#60a5fa', bg: 'rgba(96,165,250,0.12)' },
 ];
 
-export const CLIP_COLORS = { long: '#34d399', short: '#f87171', universe: '#60a5fa' };
-export const CLIP_BG     = { long: 'rgba(52,211,153,0.08)', short: 'rgba(248,113,113,0.08)', universe: 'rgba(96,165,250,0.08)' };
 
 export default function ClipboardPanel({ clipboard, onRemove, onClear, onClose }) {
   const [activeTab, setActiveTab] = useState('long');

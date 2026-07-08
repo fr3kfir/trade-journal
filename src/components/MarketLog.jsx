@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Plus, Trash2, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
 const STORAGE_KEY = 'apex_market_log_v1';
@@ -36,7 +36,7 @@ function load() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; }
 }
 function save(data) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch {}
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch { /* storage full — keep in memory */ }
 }
 
 function BiasIcon({ bias, size = 14 }) {

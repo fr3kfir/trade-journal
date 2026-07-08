@@ -1,5 +1,6 @@
 import https from 'https';
 import { Redis } from '@upstash/redis';
+import { mergeIbkrTrades, emptyTombstones } from './_lib/tradeMerge.js';
 
 const redis = new Redis({
   url: process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL,
@@ -129,7 +130,72 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'IBKR credentials not configured. Go to Settings in the app to add your token.' });
   }
 
-  const step = req.query?.step;
+  // Vercel Cron invokes the bare path — treat it as a full sync
+  const step = req.query?.step || (req.headers?.['x-vercel-cron'] ? 'sync' : undefined);
+
+  // ── Last background-sync result ──
+  if (step === 'status') {
+    const status = await redis.get('ibkr_sync_status').catch(() => null);
+    return res.status(200).json(status || { ok: null, at: null });
+  }
+
+  // ── Full server-side sync: fetch report, merge into the trades store ──
+  // Single source of truth used by the UI, the Vercel cron and the GitHub
+  // Action, so every path produces identical trade IDs and merge behavior.
+  if (step === 'sync') {
+    try {
+      let { refCode, dlUrl } = req.query || {};
+
+      if (!refCode || !dlUrl) {
+        const r1 = await httpsGet(
+          `https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService/SendRequest?t=${TOKEN}&q=${QUERY_ID}&v=3`
+        );
+        if (r1.status !== 200 || r1.body.includes('Error 403') || r1.body.includes('Access Denied')) {
+          throw new Error(`SendRequest failed (${r1.status}): ${r1.body.slice(0, 200)}`);
+        }
+        const ibkrError = r1.body.match(/<ErrorMessage>(.*?)<\/ErrorMessage>/)?.[1];
+        if (ibkrError) throw new Error(`IBKR: ${ibkrError}`);
+        refCode = r1.body.match(/<ReferenceCode>(.*?)<\/ReferenceCode>/)?.[1];
+        dlUrl   = r1.body.match(/<Url>(.*?)<\/Url>/)?.[1];
+        if (!refCode || !dlUrl) throw new Error('No reference code in response: ' + r1.body.slice(0, 300));
+      }
+
+      let body = null;
+      for (let i = 0; i < 10; i++) {
+        await new Promise(r => setTimeout(r, i === 0 ? 3000 : 4000));
+        const r2 = await httpsGet(`${dlUrl}?t=${TOKEN}&q=${refCode}&v=3`);
+        if (r2.body.includes('generation in progress') || r2.body.includes('Please wait')) continue;
+        if (r2.status === 200 && r2.body.length > 50) { body = r2.body; break; }
+      }
+      // Report still generating — hand the caller a continuation instead of failing
+      if (!body) return res.status(202).json({ pending: true, refCode, dlUrl });
+
+      const flexError = body.match(/<ErrorMessage>(.*?)<\/ErrorMessage>/)?.[1];
+      if (flexError) throw new Error(`IBKR: ${flexError}`);
+
+      const { trades: incoming } = buildTrades(parseXmlTrades(body));
+      const rawPositions = parseXmlPositions(body);
+      const nav          = parseAccountNAV(body);
+      const portfolio    = buildPositions(rawPositions, nav);
+
+      const existing   = (await redis.get('trades').catch(() => [])) || [];
+      const tombstones = emptyTombstones(await redis.get('trade_tombstones').catch(() => null));
+      const { merged, added, updated } = mergeIbkrTrades(existing, incoming, tombstones);
+
+      await redis.set('trades', merged);
+      if (portfolio.positions.length > 0 || nav) {
+        await redis.set('ibkr_portfolio', portfolio).catch(() => {});
+      }
+
+      const status = { ok: true, at: new Date().toISOString(), added, updated, imported: incoming.length, total: merged.length };
+      await redis.set('ibkr_sync_status', status).catch(() => {});
+      return res.status(200).json(status);
+    } catch (err) {
+      const status = { ok: false, at: new Date().toISOString(), error: err.message };
+      await redis.set('ibkr_sync_status', status).catch(() => {});
+      return res.status(500).json(status);
+    }
+  }
 
   // ── Return cached portfolio snapshot from Redis ──
   if (step === 'portfolio') {

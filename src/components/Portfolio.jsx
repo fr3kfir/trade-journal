@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { RefreshCw, TrendingUp, TrendingDown, AlertTriangle, Wifi, WifiOff } from 'lucide-react';
+import { runServerSync } from '../utils/ibkrSync';
 
 function fmt$(v, sign = false) {
   const s = sign ? (v >= 0 ? '+' : '') : '';
@@ -37,7 +38,7 @@ function RiskWarning({ position, nav }) {
 }
 
 // Allocation donut — SVG circle chart
-function AllocationChart({ investedPct, cashPct, size = 110 }) {
+function AllocationChart({ investedPct, size = 110 }) {
   const r = 40, cx = size / 2, cy = size / 2;
   const circ = 2 * Math.PI * r;
   const investedDash = (investedPct / 100) * circ;
@@ -50,7 +51,7 @@ function AllocationChart({ investedPct, cashPct, size = 110 }) {
   );
 }
 
-export default function Portfolio({ trades = [] }) {
+export default function Portfolio() {
   const [ibkr, setIbkr]       = useState(null);
   const [loading, setLoading]  = useState(true);
   const [syncing, setSyncing]  = useState(false);
@@ -75,20 +76,10 @@ export default function Portfolio({ trades = [] }) {
     setSyncing(true);
     setError('');
     try {
-      const r1 = await fetch('/api/ibkr?step=request');
-      const d1 = await r1.json();
-      if (d1.error) throw new Error(d1.error);
-      const { refCode, dlUrl } = d1;
-
-      let portfolio = null;
-      for (let i = 0; i < 15; i++) {
-        await new Promise(r => setTimeout(r, 5000));
-        const r2 = await fetch(`/api/ibkr?step=download&refCode=${encodeURIComponent(refCode)}&dlUrl=${encodeURIComponent(dlUrl)}`);
-        const d2 = await r2.json();
-        if (d2.error) throw new Error(d2.error);
-        if (!d2.pending) { portfolio = d2.portfolio; break; }
-      }
-      if (portfolio) setIbkr(portfolio);
+      await runServerSync();
+      const r = await fetch('/api/ibkr?step=portfolio');
+      const d = await r.json();
+      if (d?.positions?.length || d?.nav) setIbkr(d);
       else setError('Report ready but no position data — make sure your Flex query includes Open Positions');
     } catch (e) {
       setError(e.message);
@@ -189,7 +180,7 @@ export default function Portfolio({ trades = [] }) {
 
             {/* Donut */}
             <div style={{ position: 'relative', flexShrink: 0 }}>
-              <AllocationChart investedPct={investedPct} cashPct={cashPct} size={110} />
+              <AllocationChart investedPct={investedPct} size={110} />
               <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                 <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--text)' }}>{investedPct.toFixed(0)}%</div>
                 <div style={{ fontSize: 9, color: 'var(--text-faint)', textTransform: 'uppercase' }}>מושקע</div>

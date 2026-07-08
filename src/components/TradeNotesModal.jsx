@@ -1,18 +1,28 @@
 import { useState, useRef, useCallback } from 'react';
 import { ImagePlus, X, Clipboard, TrendingUp, Loader } from 'lucide-react';
 import TradingViewChart from './TradingViewChart';
-
-const STAGES = [
-  { key: 'setup', label: 'Setup',  color: '#6366f1' },
-  { key: 'entry', label: 'Entry',  color: '#0ea5e9' },
-  { key: 'add',   label: 'Add',    color: '#f59e0b' },
-  { key: 'exit',  label: 'Exit',   color: '#ef4444' },
-  { key: 'post',  label: 'Post',   color: '#8b5cf6' },
-];
+import { STAGES } from './constants';
 
 function normalizeImages(raw) {
   return (raw || []).map(img =>
     typeof img === 'string' ? { src: img, stage: 'setup' } : img
+  );
+}
+
+function TabBtn({ k, label, icon: Icon, current, onChange }) {
+  return (
+    <button
+      onClick={() => onChange(k)}
+      style={{
+        fontSize: 12, fontWeight: current === k ? 600 : 400, padding: '6px 14px',
+        border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+        background: 'none', color: current === k ? 'var(--navy)' : 'var(--text-faint)',
+        borderBottom: `2px solid ${current === k ? 'var(--navy)' : 'transparent'}`,
+        display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.12s',
+      }}
+    >
+      {Icon && <Icon size={13} />} {label}
+    </button>
   );
 }
 
@@ -34,7 +44,7 @@ export default function TradeNotesModal({ trade, onSave, onClose }) {
       if (data.src) {
         setImages(prev => [...prev, { src: data.src, stage: pendingStage }]);
       }
-    } catch {}
+    } catch { /* screenshot service unavailable */ }
     setAutoCapturing(false);
   }, [trade.ticker, pendingStage, autoCapturing]);
 
@@ -76,21 +86,6 @@ export default function TradeNotesModal({ trade, onSave, onClose }) {
     onClose();
   };
 
-  const TabBtn = ({ k, label, icon: Icon }) => (
-    <button
-      onClick={() => setTab(k)}
-      style={{
-        fontSize: 12, fontWeight: tab === k ? 600 : 400, padding: '6px 14px',
-        border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-        background: 'none', color: tab === k ? 'var(--navy)' : 'var(--text-faint)',
-        borderBottom: `2px solid ${tab === k ? 'var(--navy)' : 'transparent'}`,
-        display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.12s',
-      }}
-    >
-      {Icon && <Icon size={13} />} {label}
-    </button>
-  );
-
   return (
     <div
       className="modal-overlay"
@@ -112,8 +107,8 @@ export default function TradeNotesModal({ trade, onSave, onClose }) {
 
         {/* Tabs */}
         <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 18, marginTop: 12 }}>
-          <TabBtn k="notes"  label="Notes & Charts" />
-          <TabBtn k="chart"  label="TradingView" icon={TrendingUp} />
+          <TabBtn k="notes"  label="Notes & Charts" current={tab} onChange={setTab} />
+          <TabBtn k="chart"  label="TradingView" icon={TrendingUp} current={tab} onChange={setTab} />
         </div>
 
         {/* ── TAB: Notes & Charts ── */}

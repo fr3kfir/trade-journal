@@ -5,7 +5,8 @@ import {
 } from 'recharts';
 import { RefreshCw, Activity, TrendingUp, BarChart3, Clipboard } from 'lucide-react';
 import ThemeTracker from './ThemeTracker';
-import ClipboardPanel, { CLIP_COLORS, CLIP_BG } from './ClipboardPanel';
+import ClipboardPanel from './ClipboardPanel';
+import { CLIP_COLORS, CLIP_BG } from './constants';
 
 /* ─── COT TAB ─── */
 
@@ -198,6 +199,9 @@ function ScreenerTab({ clipboard, onClip }) {
     }
   }, [minPct, minRatio]);
 
+  // Load once on mount only — changing the filters must not refetch until
+  // the user clicks refresh
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadScreener(); }, []);
 
   const sorted = [...stocks].sort((a, b) =>

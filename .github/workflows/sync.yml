@@ -9,119 +9,30 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch IBKR trades and push to site
+      # The site's /api/ibkr?step=sync endpoint does the whole job server-side
+      # (fetch Flex report, parse, dedupe, merge into the store), so this
+      # workflow only has to call it and retry while the report generates.
+      - name: Trigger server-side IBKR sync
         env:
-          IBKR_TOKEN:   ${{ secrets.IBKR_TOKEN }}
-          IBKR_QUERY_ID: ${{ secrets.IBKR_QUERY_ID }}
-          SYNC_SECRET:  ${{ secrets.SYNC_SECRET }}
-          SITE_URL:     ${{ secrets.SITE_URL }}
+          SITE_URL: ${{ secrets.SITE_URL }}
         run: |
-          python3 << 'PYEOF'
-          import urllib.request, json, time, os, re, sys
-          import xml.etree.ElementTree as ET
-
-          TOKEN    = os.environ['IBKR_TOKEN']
-          QUERY_ID = os.environ['IBKR_QUERY_ID']
-          SECRET   = os.environ['SYNC_SECRET']
-          SITE_URL = os.environ['SITE_URL']
-
-          def http_get(url):
-              req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-              with urllib.request.urlopen(req, timeout=20) as r:
-                  return r.read().decode()
-
-          # Step 1 — request report
-          print("Requesting IBKR report...")
-          resp = http_get(f"https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService/SendRequest?t={TOKEN}&q={QUERY_ID}&v=3")
-          print("SendRequest:", resp[:300])
-
-          ref_match = re.search(r'<ReferenceCode>(.*?)</ReferenceCode>', resp)
-          url_match = re.search(r'<Url>(.*?)</Url>', resp)
-          if not ref_match or not url_match:
-              print("ERROR: No reference code:", resp)
-              sys.exit(1)
-
-          ref_code = ref_match.group(1)
-          dl_url   = url_match.group(1)
-          print(f"Ref: {ref_code} | URL: {dl_url}")
-
-          # Step 2 — poll (IBKR always returns XML)
-          body = None
-          for attempt in range(8):
-              print(f"Poll {attempt+1}/8...")
-              time.sleep(4)
-              try:
-                  text = http_get(f"{dl_url}?t={TOKEN}&q={ref_code}&v=3")
-                  if 'generation in progress' in text.lower():
-                      continue
-                  if '<FlexQueryResponse' in text or '<Trade ' in text:
-                      body = text
-                      break
-                  print("Response:", text[:150])
-              except Exception as e:
-                  print(f"Poll error: {e}")
-
-          if not body:
-              print("ERROR: No data after polling")
-              sys.exit(1)
-
-          print("Got data, length:", len(body))
-
-          # Step 3 — parse XML
-          # Trade elements have symbol, dateTime, quantity, tradePrice, etc. as attributes
-          root = ET.fromstring(body)
-
-          all_trades = root.findall('.//Trade')
-          trades = []
-          for t in all_trades:
-              sym   = t.get('symbol', '')
-              if not sym:
-                  continue
-              dt    = (t.get('dateTime') or '').replace(';', ' ').split(' ')[0]
-              qty   = float(t.get('quantity') or 0)
-              price = float(t.get('tradePrice') or 0)
-              comm  = float(t.get('ibCommission') or t.get('commission') or 0)
-              bs    = t.get('buySell', '')
-              oc    = t.get('openCloseIndicator', '')
-              # Only assign realized P&L for closing trades; opening trades have no realized P&L
-              pnl = None
-              if oc == 'C':
-                  raw_pnl = t.get('fifoPnlRealized', '')
-                  if raw_pnl not in ('', None):
-                      pnl = float(raw_pnl)
-
-              if not dt:
-                  continue
-
-              trades.append({
-                  'id':         f"ibkr-{sym}-{dt}-{qty}-{price}".replace(' ', '').replace(';', ''),
-                  'ticker':     sym.upper(),
-                  'date':       dt,
-                  'direction':  'L' if (qty > 0 or bs == 'BUY') else 'S',
-                  'quantity':   abs(qty),
-                  'entry':      price or None,
-                  'exit':       None,
-                  'stop':       None,
-                  'pnl':        pnl,
-                  'commission': comm or None,
-                  'open_close': oc,
-                  'notes':      'IBKR auto-sync',
-              })
-
-          print(f"Parsed {len(trades)} stock trades")
-          if not trades:
-              print("No trades — skipping push")
-              sys.exit(0)
-
-          # Step 4 — push to site
-          payload = json.dumps({'secret': SECRET, 'trades': trades}).encode()
-          req = urllib.request.Request(
-              f"{SITE_URL}/api/sync",
-              data=payload,
-              headers={'Content-Type': 'application/json'},
-              method='POST'
-          )
-          with urllib.request.urlopen(req, timeout=15) as r:
-              result = json.loads(r.read())
-              print(f"Sync result: {result}")
-          PYEOF
+          ref=""; dl=""
+          for attempt in 1 2 3 4; do
+            echo "Attempt $attempt"
+            resp=$(curl -sS --max-time 90 -G "$SITE_URL/api/ibkr" \
+              --data-urlencode "step=sync" \
+              ${ref:+--data-urlencode "refCode=$ref"} \
+              ${dl:+--data-urlencode "dlUrl=$dl"} \
+              || echo '{"error":"request failed"}')
+            echo "Response: $resp"
+            if echo "$resp" | grep -q '"ok":true'; then
+              echo "Sync complete."
+              exit 0
+            fi
+            # Report still generating — continue polling the same reference
+            ref=$(echo "$resp" | sed -n 's/.*"refCode":"\([^"]*\)".*/\1/p')
+            dl=$(echo  "$resp" | sed -n 's/.*"dlUrl":"\([^"]*\)".*/\1/p')
+            sleep 30
+          done
+          echo "Sync did not complete after 4 attempts"
+          exit 1
