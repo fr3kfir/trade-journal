@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { StickyNote, ChevronDown, ChevronUp, ImageOff, Search, Play } from 'lucide-react';
 import TradeNotesModal from './TradeNotesModal';
 import TradePlayback from './TradePlayback';
-import { STAGES } from './ChartLibrary';
+import { STAGES } from './constants';
 
 function normalizeImages(raw) {
   return (raw || []).map(img =>
@@ -20,6 +20,20 @@ function StageBadge({ stageKey }) {
     }}>
       {stage.label}
     </span>
+  );
+}
+
+function FilterBtn({ k, label, current, onChange }) {
+  return (
+    <button
+      onClick={() => onChange(k)}
+      style={{
+        fontSize: 11, padding: '4px 11px', borderRadius: 6, border: 'none', cursor: 'pointer',
+        background: current === k ? 'var(--navy)' : 'var(--bg-card)',
+        color: current === k ? '#fff' : 'var(--text-muted)',
+        fontWeight: current === k ? 600 : 400, fontFamily: 'inherit',
+      }}
+    >{label}</button>
   );
 }
 
@@ -233,18 +247,6 @@ export default function TradeReview({ trades, onUpdate }) {
 
   const totalWithContent = trades.filter(t => t.pnl != null && (t.notes?.trim() || t.chart_images?.length)).length;
 
-  const FilterBtn = ({ k, label }) => (
-    <button
-      onClick={() => setFilter(k)}
-      style={{
-        fontSize: 11, padding: '4px 11px', borderRadius: 6, border: 'none', cursor: 'pointer',
-        background: filter === k ? 'var(--navy)' : 'var(--bg-card)',
-        color: filter === k ? '#fff' : 'var(--text-muted)',
-        fontWeight: filter === k ? 600 : 400, fontFamily: 'inherit',
-      }}
-    >{label}</button>
-  );
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
@@ -276,10 +278,10 @@ export default function TradeReview({ trades, onUpdate }) {
 
         {/* Filter buttons */}
         <div style={{ display: 'flex', gap: 4 }}>
-          <FilterBtn k="all"    label="All" />
-          <FilterBtn k="notes"  label="Notes only" />
-          <FilterBtn k="charts" label="Charts only" />
-          <FilterBtn k="both"   label="Notes + Charts" />
+          <FilterBtn k="all"    label="All" current={filter} onChange={setFilter} />
+          <FilterBtn k="notes"  label="Notes only" current={filter} onChange={setFilter} />
+          <FilterBtn k="charts" label="Charts only" current={filter} onChange={setFilter} />
+          <FilterBtn k="both"   label="Notes + Charts" current={filter} onChange={setFilter} />
         </div>
 
         {/* Sort */}

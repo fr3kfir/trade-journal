@@ -2,13 +2,18 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Images, ChevronLeft, ChevronRight, Search, Upload, ExternalLink } from 'lucide-react';
 import MiniChart from './MiniChart.jsx';
 
-export const STAGES = [
-  { key: 'setup', label: 'Setup',  color: '#6366f1' },
-  { key: 'entry', label: 'Entry',  color: '#0ea5e9' },
-  { key: 'add',   label: 'Add',    color: '#f59e0b' },
-  { key: 'exit',  label: 'Exit',   color: '#ef4444' },
-  { key: 'post',  label: 'Post',   color: '#8b5cf6' },
-];
+import { STAGES } from './constants';
+
+function FilterBtn({ value, current, onChange, label }) {
+  return (
+    <button onClick={() => onChange(value)} style={{
+      fontSize: 11, padding: '4px 11px', borderRadius: 6, border: 'none', cursor: 'pointer',
+      background: current === value ? 'var(--navy)' : 'var(--bg-card)',
+      color: current === value ? '#fff' : 'var(--text-muted)',
+      fontWeight: current === value ? 600 : 400, fontFamily: 'inherit',
+    }}>{label}</button>
+  );
+}
 
 function normalizeImages(raw) {
   return (raw || []).map(img =>
@@ -340,15 +345,6 @@ export default function ChartLibrary({ trades, onUpdate }) {
     reader.readAsDataURL(file);
     e.target.value = '';
   }, [onUpdate]);
-
-  const FilterBtn = ({ value, current, onChange, label }) => (
-    <button onClick={() => onChange(value)} style={{
-      fontSize: 11, padding: '4px 11px', borderRadius: 6, border: 'none', cursor: 'pointer',
-      background: current === value ? 'var(--navy)' : 'var(--bg-card)',
-      color: current === value ? '#fff' : 'var(--text-muted)',
-      fontWeight: current === value ? 600 : 400, fontFamily: 'inherit',
-    }}>{label}</button>
-  );
 
   const activeImages = activeTrade ? normalizeImages(activeTrade.chart_images) : [];
 

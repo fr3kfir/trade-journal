@@ -131,24 +131,31 @@ function Btn({ active, onClick, children }) {
 
 export default function PnLChart({ trades, externalRange }) {
   const [range,          setRange]          = useState(externalRange || 'YTD');
+  const [prevExternal,   setPrevExternal]   = useState(externalRange);
 
-  useEffect(() => {
+  // Adjust-during-render: follow the dashboard timeframe when it changes,
+  // while still letting the user override with the local range buttons
+  if (externalRange !== prevExternal) {
+    setPrevExternal(externalRange);
     if (externalRange) setRange(externalRange);
-  }, [externalRange]);
+  }
+
   const [mode,           setMode]           = useState('$');
   const [accountSize,    setAccountSize]    = useState(() => parseFloat(localStorage.getItem('apex_account_size')) || 0);
   const [editingAccount, setEditingAccount] = useState(false);
   const [accountDraft,   setAccountDraft]   = useState('');
   const [activeIndices,  setActiveIndices]  = useState({ '^GSPC': false, '^IXIC': false });
-  const [indicesData,    setIndicesData]    = useState({});
-  const [loadingIdx,     setLoadingIdx]     = useState(false);
+  // key records which range/indices combination the data belongs to,
+  // so "loading" is derived instead of set synchronously in the effect
+  const [indices,        setIndices]        = useState({ key: '', data: {} });
 
   const showIndices = Object.values(activeIndices).some(Boolean);
+  const idxKey = `${range}|${INDICES.filter(i => activeIndices[i.symbol]).map(i => i.symbol).join(',')}`;
 
   useEffect(() => {
     if (!showIndices) return;
     const ro = RANGES.find(r => r.key === range);
-    setLoadingIdx(true);
+    let stale = false;
     Promise.all(
       INDICES.filter(i => activeIndices[i.symbol]).map(i =>
         fetch(`/api/indices?symbol=${encodeURIComponent(i.symbol)}&range=${ro.yahooRange}&interval=${ro.yahooInterval}`)
@@ -156,8 +163,14 @@ export default function PnLChart({ trades, externalRange }) {
           .then(d => [i.symbol, d.points || []])
           .catch(() => [i.symbol, []])
       )
-    ).then(results => { setIndicesData(Object.fromEntries(results)); setLoadingIdx(false); });
-  }, [showIndices, range, activeIndices]);
+    ).then(results => {
+      if (!stale) setIndices({ key: idxKey, data: Object.fromEntries(results) });
+    });
+    return () => { stale = true; };
+  }, [showIndices, range, activeIndices, idxKey]);
+
+  const indicesData = indices.data;
+  const loadingIdx  = showIndices && indices.key !== idxKey;
 
   const tradeData = useMemo(() => buildTradeData(trades, range, accountSize), [trades, range, accountSize]);
   const data      = useMemo(() => mergeIndices(tradeData, indicesData), [tradeData, indicesData]);

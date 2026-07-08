@@ -6,7 +6,7 @@ export function useLocalStore(key, initial = []) {
     catch { return initial; }
   });
 
-  useEffect(() => { localStorage.setItem(key, JSON.stringify(data)); }, [data]);
+  useEffect(() => { localStorage.setItem(key, JSON.stringify(data)); }, [key, data]);
 
   const add = (item) => setData(prev => [{ ...item, id: item.id || `${key}-${Date.now()}` }, ...prev]);
   const update = (id, fields) => setData(prev => prev.map(x => x.id === id ? { ...x, ...fields } : x));

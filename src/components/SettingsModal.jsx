@@ -8,6 +8,7 @@ export default function SettingsModal({ onClose }) {
   const [saving, setSaving]   = useState(false);
   const [accountSize, setAccountSize] = useState(() => localStorage.getItem('apex_account_size') || '');
   const [riskPct,     setRiskPct]     = useState(() => localStorage.getItem('apex_risk_pct')     || '1');
+  const [syncStatus,  setSyncStatus]  = useState(null);
 
   useEffect(() => {
     fetch('/api/settings')
@@ -16,6 +17,10 @@ export default function SettingsModal({ onClose }) {
         setTokenSet(d.ibkrTokenSet);
         setQueryId(d.ibkrQueryId || '');
       })
+      .catch(() => {});
+    fetch('/api/ibkr?step=status')
+      .then(r => r.json())
+      .then(d => { if (d && d.at) setSyncStatus(d); })
       .catch(() => {});
   }, []);
 
@@ -59,6 +64,21 @@ export default function SettingsModal({ onClose }) {
           3. Copy your <b>Current Token</b> (or click Generate)<br />
           4. Also copy your <b>Query ID</b> from the Flex Queries list
         </div>
+
+        {/* Last background sync */}
+        {syncStatus && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18,
+            fontSize: 12, borderRadius: 8, padding: '10px 14px',
+            background: syncStatus.ok ? '#22c55e12' : '#ef444412',
+            border: `1px solid ${syncStatus.ok ? '#22c55e30' : '#ef444430'}`,
+            color: syncStatus.ok ? 'var(--green)' : '#ef4444',
+          }}>
+            {syncStatus.ok
+              ? <>✓ סנכרון אחרון: {new Date(syncStatus.at).toLocaleString('he-IL')} — {syncStatus.added} חדשות, {syncStatus.updated} עודכנו</>
+              : <>✗ הסנכרון האחרון נכשל ({new Date(syncStatus.at).toLocaleString('he-IL')}): {syncStatus.error}</>}
+          </div>
+        )}
 
         {/* ── Risk Settings ── */}
         <div style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 10, padding: '14px 16px', marginBottom: 18 }}>

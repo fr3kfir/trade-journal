@@ -112,7 +112,7 @@ exports.handler = async (event) => {
 
   const ticker = (event.queryStringParameters?.ticker || '')
     .toUpperCase()
-    .replace(/[^A-Z0-9.\-]/g, '');
+    .replace(/[^A-Z0-9.-]/g, '');
   const date = (event.queryStringParameters?.date || '').trim();
 
   if (!ticker || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {

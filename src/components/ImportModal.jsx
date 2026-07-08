@@ -31,7 +31,6 @@ function parseIBKR(text) {
       const date = dateRaw.split(',')[0].split(' ')[0].replace(/\//g, '-');
       const qty = parseFloat(row['quantity'] || '0');
       const price = parseFloat(row['t__price'] || row['price'] || row['t_price'] || '0');
-      const proceeds = parseFloat(row['proceeds'] || '0');
       const comm = parseFloat(row['comm_fee'] || row['commission'] || '0');
       const realizedPL = parseFloat(row['realized_p_l'] || row['realized_pl'] || '0');
       const code = row['code'] || '';

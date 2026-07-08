@@ -280,12 +280,12 @@ function loadPlaybook() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) return { ...DEFAULT_SETUPS, ...JSON.parse(saved) };
-  } catch {}
+  } catch { /* corrupt data — fall back to defaults */ }
   return { ...DEFAULT_SETUPS };
 }
 
 function savePlaybook(data) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch {}
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch { /* storage full — keep in memory */ }
 }
 
 export default function Playbook({ trades }) {

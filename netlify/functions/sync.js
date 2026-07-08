@@ -31,7 +31,7 @@ exports.handler = async (event) => {
     try {
       const raw = await store.get('trades');
       if (raw) existing = JSON.parse(raw);
-    } catch {}
+    } catch { /* no existing store yet */ }
 
     // Merge: add new ibkr trades, update existing ibkr trades (to fix P&L etc), keep manual trades intact
     const incomingMap = new Map(incoming.map(t => [t.id, t]));

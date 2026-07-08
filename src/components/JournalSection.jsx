@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Star, Trash2, ChevronDown, ChevronUp, X } from 'lucide-react';
 import { useJournalStore } from '../hooks/useJournalStore';
 
@@ -20,22 +20,6 @@ export default function JournalSection() {
     if (form === 'new') add(draft);
     else update(form, draft);
     setForm(null);
-  };
-
-  const handlePaste = (e) => {
-    const items = Array.from(e.clipboardData?.items || []);
-    const imageItems = items.filter(item => item.type.startsWith('image/'));
-    if (imageItems.length === 0) return;
-    e.preventDefault();
-    imageItems.forEach(item => {
-      const file = item.getAsFile();
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        setDraft(d => ({ ...d, images: [...(d.images || []), ev.target.result] }));
-      };
-      reader.readAsDataURL(file);
-    });
   };
 
   const removeImage = (idx) => {

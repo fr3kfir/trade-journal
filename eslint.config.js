@@ -23,7 +23,28 @@ export default defineConfig([
       },
     },
     rules: {
-      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      // ^[A-Z] in args: component-typed params (icon: Icon) are used via JSX,
+      // which core no-unused-vars can't see without eslint-plugin-react
+      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]', argsIgnorePattern: '^_|^[A-Z]' }],
+    },
+  },
+  // Vercel serverless functions — Node ESM
+  {
+    files: ['api/**/*.js'],
+    languageOptions: { globals: globals.node },
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
+  // Netlify functions — Node CommonJS
+  {
+    files: ['netlify/functions/**/*.js'],
+    languageOptions: {
+      globals: globals.node,
+      sourceType: 'commonjs',
+    },
+    rules: {
+      'react-refresh/only-export-components': 'off',
     },
   },
 ])

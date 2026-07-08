@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { X, ChevronLeft, ChevronRight, TrendingUp } from 'lucide-react';
-import { STAGES } from './ChartLibrary';
+import { STAGES } from './constants';
 import TradingViewChart from './TradingViewChart';
 
 const STAGE_ORDER = ['setup', 'entry', 'add', 'exit', 'post'];

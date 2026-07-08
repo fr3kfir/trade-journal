@@ -22,10 +22,14 @@ export function useJournalStore() {
   useEffect(() => {
     localStorage.setItem(KEY, JSON.stringify(entries));
     if (!initialized.current) return;
-    setSyncStatus('saving');
-    pushToServer(entries)
-      .then(r => r.ok ? setSyncStatus('synced') : setSyncStatus('error'))
-      .catch(() => setSyncStatus('error'));
+    // Debounced push — one request per burst of edits instead of one per keystroke
+    const t = setTimeout(() => {
+      setSyncStatus('saving');
+      pushToServer(entries)
+        .then(r => r.ok ? setSyncStatus('synced') : setSyncStatus('error'))
+        .catch(() => setSyncStatus('error'));
+    }, 500);
+    return () => clearTimeout(t);
   }, [entries]);
 
   useEffect(() => {

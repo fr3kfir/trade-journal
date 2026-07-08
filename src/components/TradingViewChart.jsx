@@ -21,7 +21,7 @@ export default function TradingViewChart({ ticker, date, theme = 'dark' }) {
     const loadWidget = () => {
       if (!window.TradingView) return;
       if (widgetRef.current) {
-        try { widgetRef.current.remove?.(); } catch {}
+        try { widgetRef.current.remove?.(); } catch { /* widget already disposed */ }
       }
       containerRef.current.innerHTML = '';
 
@@ -61,7 +61,7 @@ export default function TradingViewChart({ ticker, date, theme = 'dark' }) {
     }
 
     return () => {
-      try { widgetRef.current?.remove?.(); } catch {}
+      try { widgetRef.current?.remove?.(); } catch { /* widget already disposed */ }
     };
   }, [ticker, containerId, theme]);
 

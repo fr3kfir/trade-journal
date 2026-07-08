@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 const SETUPS = ['VCP', 'HTF', 'EP', 'HVC', 'U&R', 'Breakout', 'Base Breakout', 'Pullback', 'Cup with Handle', 'Flat Base', 'IPO Base', 'Other'];
 
@@ -53,6 +53,17 @@ function StarRating({ value, onChange }) {
   );
 }
 
+// Must live at module scope: an inline component gets a new identity every
+// render, which remounts its children and makes inputs lose focus per keystroke
+function Field({ label, children, half }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flex: half ? '0 0 calc(50% - 6px)' : '1' }}>
+      <label style={{ fontSize: 10.5, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
+      {children}
+    </div>
+  );
+}
+
 function Section({ title, children, accent }) {
   return (
     <div style={{
@@ -77,50 +88,48 @@ export default function TradeModal({ trade, onSave, onClose }) {
     trade ? { ...EMPTY, ...trade } : { ...EMPTY, date: new Date().toISOString().split('T')[0] }
   );
 
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-
-  // Auto-calc P&L
-  useEffect(() => {
-    const e = parseFloat(form.entry), x = parseFloat(form.exit), q = parseFloat(form.quantity);
-    if (e && x && q) {
-      const raw = form.direction === 'L' ? (x - e) * q : (e - x) * q;
-      set('pnl', Math.round(raw * 100) / 100);
+  // Auto-calc P&L and R-Multiple whenever a price/quantity field changes
+  const set = (k, v) => setForm(f => {
+    const next = { ...f, [k]: v };
+    if (['entry', 'exit', 'quantity', 'stop', 'direction'].includes(k)) {
+      const e = parseFloat(next.entry), x = parseFloat(next.exit),
+            q = parseFloat(next.quantity), s = parseFloat(next.stop);
+      const long = next.direction === 'L';
+      if (e && x && q) {
+        next.pnl = Math.round((long ? (x - e) * q : (e - x) * q) * 100) / 100;
+      }
+      if (e && x && s) {
+        const initialRisk = long ? e - s : s - e;
+        if (initialRisk > 0) {
+          next.r_value = Math.round(((long ? x - e : e - x) / initialRisk) * 100) / 100;
+        }
+      }
     }
-  }, [form.entry, form.exit, form.quantity, form.direction]);
+    return next;
+  });
 
-  // Auto-calc R-Multiple
-  useEffect(() => {
-    const e = parseFloat(form.entry), x = parseFloat(form.exit), s = parseFloat(form.stop);
-    if (e && x && s) {
-      const initialRisk = form.direction === 'L' ? e - s : s - e;
-      const profit      = form.direction === 'L' ? x - e : e - x;
-      if (initialRisk > 0) set('r_value', Math.round((profit / initialRisk) * 100) / 100);
-    }
-  }, [form.entry, form.exit, form.stop, form.direction]);
+  // Keeps 0 as a real value — `|| null` used to turn break-even P&L into null
+  const num = (v) => {
+    const n = parseFloat(v);
+    return Number.isFinite(n) ? n : null;
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!form.ticker || !form.date) return;
     onSave({
       ...form,
-      entry:           parseFloat(form.entry)      || null,
-      exit:            parseFloat(form.exit)       || null,
-      stop:            parseFloat(form.stop)       || null,
-      quantity:        parseFloat(form.quantity)   || null,
-      pnl:             parseFloat(form.pnl)        || null,
-      r_value:         parseFloat(form.r_value)    || null,
-      commission:      parseFloat(form.commission) || null,
+      entry:           num(form.entry),
+      exit:            num(form.exit),
+      stop:            num(form.stop),
+      quantity:        num(form.quantity),
+      pnl:             num(form.pnl),
+      r_value:         num(form.r_value),
+      commission:      num(form.commission),
       execution_score: form.execution_score,
       followed_rules:  form.followed_rules,
     });
   };
-
-  const Field = ({ label, children, half }) => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flex: half ? '0 0 calc(50% - 6px)' : '1' }}>
-      <label style={{ fontSize: 10.5, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
-      {children}
-    </div>
-  );
 
   const pnlVal  = parseFloat(form.pnl);
   const rVal    = parseFloat(form.r_value);
