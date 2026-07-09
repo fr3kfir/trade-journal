@@ -18,20 +18,23 @@ export default async function handler(req, res) {
       return res.status(200).json({
         ibkrTokenSet: !!settings.ibkrToken,
         ibkrQueryId: settings.ibkrQueryId || '',
+        ibkrConfirmQueryId: settings.ibkrConfirmQueryId || '',
       });
     } catch (err) {
-      return res.status(200).json({ ibkrTokenSet: false, ibkrQueryId: '', error: err.message });
+      return res.status(200).json({ ibkrTokenSet: false, ibkrQueryId: '', ibkrConfirmQueryId: '', error: err.message });
     }
   }
 
   if (req.method === 'POST') {
     try {
-      const { ibkrToken, ibkrQueryId } = req.body || {};
+      const { ibkrToken, ibkrQueryId, ibkrConfirmQueryId } = req.body || {};
       const existing = await redis.get('settings') || {};
       const updated = {
         ...existing,
         ...(ibkrToken    ? { ibkrToken }    : {}),
         ...(ibkrQueryId  ? { ibkrQueryId }  : {}),
+        // Empty string is allowed — clears the confirm query to disable intraday sync
+        ...(ibkrConfirmQueryId !== undefined ? { ibkrConfirmQueryId: ibkrConfirmQueryId.trim() } : {}),
       };
       await redis.set('settings', updated);
       return res.status(200).json({ ok: true });

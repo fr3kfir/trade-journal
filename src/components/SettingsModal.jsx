@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 export default function SettingsModal({ onClose }) {
   const [token, setToken]     = useState('');
   const [queryId, setQueryId] = useState('');
+  const [confirmQueryId, setConfirmQueryId] = useState('');
   const [tokenSet, setTokenSet] = useState(false);
   const [msg, setMsg]         = useState('');
   const [saving, setSaving]   = useState(false);
@@ -15,17 +16,18 @@ export default function SettingsModal({ onClose }) {
       .then(d => {
         setTokenSet(d.ibkrTokenSet);
         setQueryId(d.ibkrQueryId || '');
+        setConfirmQueryId(d.ibkrConfirmQueryId || '');
       })
       .catch(() => {});
   }, []);
 
   const handleSave = async () => {
-    if (!token && !queryId) { setMsg('Enter at least one value to save.'); return; }
     setSaving(true);
     try {
       const body = {};
       if (token)   body.ibkrToken   = token.trim();
       if (queryId) body.ibkrQueryId = queryId.trim();
+      body.ibkrConfirmQueryId = confirmQueryId.trim();
       const r = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -99,7 +101,7 @@ export default function SettingsModal({ onClose }) {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 11, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Query ID</label>
+            <label style={{ fontSize: 11, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Query ID (Activity)</label>
             <input
               className="input"
               type="text"
@@ -107,6 +109,25 @@ export default function SettingsModal({ onClose }) {
               value={queryId}
               onChange={e => setQueryId(e.target.value)}
             />
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: 11, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Confirm Query ID — סנכרון עסקאות של היום
+            </label>
+            <input
+              className="input"
+              type="text"
+              placeholder="Trade Confirmation Flex Query ID (optional)"
+              value={confirmQueryId}
+              onChange={e => setConfirmQueryId(e.target.value)}
+            />
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.7 }}>
+              דו״ח ה-Activity מתעדכן רק בלילה, ולכן עסקאות של היום לא מופיעות בו.
+              כדי לראות אותן מיד: צור ב-IBKR <b>Trade Confirmation Flex Query</b> (Reports → Flex Queries →
+              Trade Confirmation), תקופה <b>Today</b>, פורמט XML, והדבק כאן את ה-Query ID.
+              ה-P&L הרשמי יתווסף אוטומטית למחרת בלי למחוק הערות שכתבת.
+            </div>
           </div>
 
           {msg && (
