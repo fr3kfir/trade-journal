@@ -27,6 +27,27 @@ import SettingsModal from './components/SettingsModal';
 
 const TF_RANGES = ['1W', '1M', '3M', 'YTD', 'ALL'];
 
+// Runs one IBKR flex query end-to-end (request + poll until ready).
+// kind 'activity' = the daily statement (updated overnight, carries P&L);
+// kind 'confirm'  = trade confirmations (updated intraday — today's trades).
+// Returns null when the confirm query isn't configured in Settings.
+async function fetchIbkrReport(kind) {
+  const qs = kind === 'confirm' ? '&q=confirm' : '';
+  const r1 = await fetch(`/api/ibkr?step=request${qs}`);
+  const d1 = await r1.json();
+  if (d1.notConfigured) return null;
+  if (d1.error) throw new Error(d1.error);
+  const { refCode, dlUrl } = d1;
+  for (let i = 0; i < 15; i++) {
+    await new Promise(r => setTimeout(r, 5000));
+    const r2 = await fetch(`/api/ibkr?step=download&refCode=${encodeURIComponent(refCode)}&dlUrl=${encodeURIComponent(dlUrl)}`);
+    const d2 = await r2.json();
+    if (d2.error) throw new Error(d2.error);
+    if (!d2.pending) return d2;
+  }
+  throw new Error('Report took too long — try again in a moment');
+}
+
 function filterByTimeframe(trades, tf) {
   if (tf === 'ALL') return trades;
   const now = new Date();
@@ -78,34 +99,26 @@ export default function App() {
   const filteredTrades = filterByTimeframe(trades, dashTimeframe);
   const s = calcSummary(filteredTrades);
 
-  // Auto daily IBKR sync — runs once per day automatically
+  // Auto IBKR sync — runs on every load (throttled to 10 min) so today's
+  // trades show up without pressing Sync. Confirm query first: it's the one
+  // that carries same-day executions.
   useEffect(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    const lastSync = localStorage.getItem('ibkr_last_auto_sync');
-    if (lastSync !== today) {
-      const autoSync = async () => {
-        try {
-          const r1 = await fetch('/api/ibkr?step=request');
-          const d1 = await r1.json();
-          if (d1.error) return;
-          const { refCode, dlUrl } = d1;
-          for (let i = 0; i < 15; i++) {
-            await new Promise(r => setTimeout(r, 5000));
-            const r2 = await fetch(`/api/ibkr?step=download&refCode=${encodeURIComponent(refCode)}&dlUrl=${encodeURIComponent(dlUrl)}`);
-            const d2 = await r2.json();
-            if (d2.error || d2.pending) continue;
-            const count = importTrades(d2.trades || []);
-            if (count > 0) {
-              setImportMsg(`Auto-synced ${count} new trades from IBKR`);
-              setTimeout(() => setImportMsg(''), 5000);
-            }
-            localStorage.setItem('ibkr_last_auto_sync', today);
-            break;
-          }
-        } catch {}
-      };
-      autoSync();
-    }
+    const last = parseInt(localStorage.getItem('ibkr_last_auto_sync_ts') || '0', 10);
+    if (Date.now() - last < 10 * 60 * 1000) return;
+    const autoSync = async () => {
+      try {
+        const confirm  = await fetchIbkrReport('confirm').catch(() => null);
+        const activity = await fetchIbkrReport('activity').catch(() => null);
+        if (!confirm && !activity) return;
+        const count = importTrades([...(confirm?.trades || []), ...(activity?.trades || [])]);
+        if (count > 0) {
+          setImportMsg(`Auto-synced ${count} new trades from IBKR`);
+          setTimeout(() => setImportMsg(''), 5000);
+        }
+        localStorage.setItem('ibkr_last_auto_sync_ts', String(Date.now()));
+      } catch {}
+    };
+    autoSync();
   }, []);
 
   useEffect(() => {
@@ -159,24 +172,20 @@ export default function App() {
   const handleManualSync = async () => {
     setSyncing(true);
     try {
-      // Step 1: ask IBKR to generate the report
-      const r1 = await fetch('/api/ibkr?step=request');
-      const d1 = await r1.json();
-      if (d1.error) throw new Error(d1.error);
-      const { refCode, dlUrl } = d1;
-
-      // Step 2: poll the browser side until the report is ready (up to ~75s)
-      let data = null;
-      for (let i = 0; i < 15; i++) {
-        await new Promise(r => setTimeout(r, i === 0 ? 5000 : 5000));
-        const r2 = await fetch(`/api/ibkr?step=download&refCode=${encodeURIComponent(refCode)}&dlUrl=${encodeURIComponent(dlUrl)}`);
-        const d2 = await r2.json();
-        if (d2.error) throw new Error(d2.error);
-        if (!d2.pending) { data = d2; break; }
+      // Confirm query first (today's executions), then the activity statement.
+      // Sequential on purpose — IBKR's flex service dislikes parallel requests.
+      const incoming = [];
+      let firstError = null;
+      for (const kind of ['confirm', 'activity']) {
+        try {
+          const data = await fetchIbkrReport(kind);
+          if (data) incoming.push(...(data.trades || []));
+        } catch (e) { firstError = firstError || e; }
       }
-      if (!data) throw new Error('Report took too long — try again in a moment');
+      if (!incoming.length && firstError) throw firstError;
 
-      const newCount = importTrades(data.trades || []);
+      const newCount = importTrades(incoming);
+      localStorage.setItem('ibkr_last_auto_sync_ts', String(Date.now()));
       setImportMsg(newCount > 0 ? `+${newCount} new trades added from IBKR` : `Sync complete — no new trades`);
     } catch (e) { setImportMsg(`Sync failed: ${e.message}`); }
     finally { setSyncing(false); setTimeout(() => setImportMsg(''), 6000); }

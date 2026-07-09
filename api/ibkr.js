@@ -34,8 +34,16 @@ function parseXmlAttrs(xml, tag) {
   return results;
 }
 
-function parseXmlTrades(xml)     { return parseXmlAttrs(xml, 'Trade'); }
-function parseXmlPositions(xml)  { return parseXmlAttrs(xml, 'OpenPosition').filter(p => p.levelOfDetail === 'SUMMARY'); }
+function parseXmlTrades(xml)        { return parseXmlAttrs(xml, 'Trade'); }
+function parseXmlTradeConfirms(xml) { return parseXmlAttrs(xml, 'TradeConfirm'); }
+function parseXmlPositions(xml)     { return parseXmlAttrs(xml, 'OpenPosition').filter(p => p.levelOfDetail === 'SUMMARY'); }
+
+function formatFlexDate(d) {
+  if (!d) return '';
+  const s = d.split(';')[0].split(' ')[0].replace(/-/g, '');
+  if (s.length === 8) return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;
+  return d.split(';')[0].split(' ')[0];
+}
 
 function parseAccountNAV(xml) {
   // Try EquitySummaryByReportDateInBase (most common)
@@ -77,12 +85,7 @@ function buildPositions(raw, nav) {
 }
 
 function buildTrades(all) {
-  const formatDate = (d) => {
-    if (!d) return '';
-    const s = d.split(';')[0].split(' ')[0].replace(/-/g, '');
-    if (s.length === 8) return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;
-    return d.split(';')[0].split(' ')[0];
-  };
+  const formatDate = formatFlexDate;
 
   // Import every stock execution: closing trades carry realized P&L (even 0),
   // opening trades come in with pnl=null so the UI treats them as open legs.
@@ -105,6 +108,7 @@ function buildTrades(all) {
       pnl:        hasPnl ? parseFloat(t.fifoPnlRealized) : null,
       commission: Math.abs(parseFloat(t.ibCommission) || 0),
       open_close: t.openCloseIndicator || '',
+      source:     'ibkr',
       notes:      isClose ? 'IBKR import' : 'IBKR import — opening leg',
     };
   });
@@ -116,6 +120,32 @@ function buildTrades(all) {
   return { trades, count: trades.length, debug: { totalFromIBKR: all.length, imported: trades.length, opens, closes, datesInReport: allDates } };
 }
 
+// Trade Confirmation flex queries update in near real-time during the trading
+// day, so they surface today's executions hours before the overnight Activity
+// statement exists. Confirmations carry no realized P&L or open/close flag —
+// the Activity sync fills those in the next day (see importTrades merge logic).
+function buildConfirmTrades(all) {
+  const list = all.filter(t => t.symbol && (t.assetCategory === 'STK' || !t.assetCategory));
+  return list.map(t => {
+    const isBuy = t.buySell !== 'SELL';
+    return {
+      id:         `ibkr-${t.tradeID || (t.symbol + (t.tradeDate || t.dateTime || '') + t.quantity + (t.price || ''))}`.replace(/[\s;,]/g, ''),
+      ticker:     (t.symbol || '').toUpperCase(),
+      date:       formatFlexDate(t.tradeDate || t.dateTime || t.reportDate),
+      direction:  isBuy ? 'L' : 'S',
+      quantity:   Math.abs(parseFloat(t.quantity) || 0),
+      entry:      parseFloat(t.price ?? t.tradePrice) || null,
+      exit:       null,
+      stop:       null,
+      pnl:        null,
+      commission: Math.abs(parseFloat(t.commission ?? t.ibCommission) || 0),
+      open_close: '',
+      source:     'ibkr-confirm',
+      notes:      'IBKR same-day sync',
+    };
+  });
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Content-Type', 'application/json');
@@ -124,6 +154,8 @@ export default async function handler(req, res) {
   const settings = await redis.get('settings').catch(() => ({})) || {};
   const TOKEN    = settings.ibkrToken   || process.env.IBKR_TOKEN;
   const QUERY_ID = settings.ibkrQueryId || process.env.IBKR_QUERY_ID;
+  // Optional Trade Confirmation flex query — enables same-day (intraday) trade sync
+  const CONFIRM_QUERY_ID = settings.ibkrConfirmQueryId || process.env.IBKR_CONFIRM_QUERY_ID;
 
   if (!TOKEN || !QUERY_ID) {
     return res.status(500).json({ error: 'IBKR credentials not configured. Go to Settings in the app to add your token.' });
@@ -156,9 +188,15 @@ export default async function handler(req, res) {
 
   // ── Step 1: send request to IBKR, return refCode + dlUrl to client ──
   if (step === 'request') {
+    const useConfirm = req.query?.q === 'confirm';
+    if (useConfirm && !CONFIRM_QUERY_ID) {
+      // Not an error — the frontend silently skips intraday sync when unset
+      return res.status(200).json({ notConfigured: true });
+    }
+    const qid = useConfirm ? CONFIRM_QUERY_ID : QUERY_ID;
     try {
       const r1 = await httpsGet(
-        `https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService/SendRequest?t=${TOKEN}&q=${QUERY_ID}&v=3`
+        `https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService/SendRequest?t=${TOKEN}&q=${qid}&v=3`
       );
       if (r1.status !== 200 || r1.body.includes('Error 403') || r1.body.includes('Access Denied')) {
         throw new Error(`SendRequest failed (${r1.status}): ${r1.body.slice(0, 200)}`);
@@ -187,6 +225,7 @@ export default async function handler(req, res) {
         return res.status(200).json({ pending: true });
       }
       const allTrades    = parseXmlTrades(r2.body);
+      const confirms     = buildConfirmTrades(parseXmlTradeConfirms(r2.body));
       const rawPositions = parseXmlPositions(r2.body);
       const nav          = parseAccountNAV(r2.body);
       const portfolio    = buildPositions(rawPositions, nav);
@@ -196,7 +235,9 @@ export default async function handler(req, res) {
         redis.set('ibkr_portfolio', portfolio).catch(() => {});
       }
 
-      return res.status(200).json({ ...buildTrades(allTrades), portfolio });
+      const built = buildTrades(allTrades);
+      const trades = [...built.trades, ...confirms];
+      return res.status(200).json({ ...built, trades, count: trades.length, debug: { ...built.debug, confirms: confirms.length }, portfolio });
     } catch (err) {
       return res.status(500).json({ error: err.message });
     }
@@ -224,13 +265,16 @@ export default async function handler(req, res) {
     if (!body) throw new Error('IBKR report not ready after 40s — try again in a moment');
 
     const allTrades    = parseXmlTrades(body);
+    const confirms     = buildConfirmTrades(parseXmlTradeConfirms(body));
     const rawPositions = parseXmlPositions(body);
     const nav          = parseAccountNAV(body);
     const portfolio    = buildPositions(rawPositions, nav);
     if (portfolio.positions.length > 0 || nav) {
       redis.set('ibkr_portfolio', portfolio).catch(() => {});
     }
-    return res.status(200).json({ ...buildTrades(allTrades), portfolio });
+    const built = buildTrades(allTrades);
+    const trades = [...built.trades, ...confirms];
+    return res.status(200).json({ ...built, trades, count: trades.length, debug: { ...built.debug, confirms: confirms.length }, portfolio });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
