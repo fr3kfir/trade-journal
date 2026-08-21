@@ -102,11 +102,100 @@ function calcStats(trades) {
     pos: +start >= 0,
   }));
 
+  // Std dev & per-trade Sharpe-like ratio
+  const meanPnl = pnls.reduce((a, b) => a + b, 0) / pnls.length;
+  const variance = pnls.reduce((a, b) => a + (b - meanPnl) ** 2, 0) / pnls.length;
+  const stdDev = Math.sqrt(variance);
+  const sharpe = stdDev ? meanPnl / stdDev : 0;
+
+  // Recovery factor
+  const recoveryFactor = maxDD ? totalPnl / maxDD : (totalPnl > 0 ? Infinity : 0);
+
+  // Kelly %
+  const winFrac = winRate / 100;
+  const rrRatio = avgLoss ? avgWin / avgLoss : null;
+  const kelly = rrRatio ? (winFrac - (1 - winFrac) / rrRatio) * 100 : null;
+
+  // Expectancy per trade
+  const expectancy = (winFrac * avgWin) - ((1 - winFrac) * avgLoss);
+
+  // Holding days
+  const holds = sorted.filter(t => t.exit_date).map(t => {
+    const d = Math.round((new Date(t.exit_date) - new Date(t.date)) / 86400000);
+    return d >= 0 ? d : null;
+  }).filter(d => d != null);
+  const avgHoldDays = holds.length ? holds.reduce((a, b) => a + b, 0) / holds.length : null;
+
+  // Trade frequency
+  const dates = sorted.map(t => new Date(t.date)).filter(d => !isNaN(d));
+  let longestGapDays = 0;
+  for (let k = 1; k < dates.length; k++) {
+    const gap = Math.round((dates[k] - dates[k - 1]) / 86400000);
+    if (gap > longestGapDays) longestGapDays = gap;
+  }
+  const spanDays = dates.length > 1 ? Math.round((dates[dates.length - 1] - dates[0]) / 86400000) : 0;
+  const tradesPerWeek = spanDays > 0 ? (closed.length / (spanDays / 7)) : closed.length;
+
+  // Biggest win/loss streak in $
+  let bestStreakPnl = 0, worstStreakPnl = 0, runningStreak = 0, streakSign = 0;
+  pnls.forEach(p => {
+    const sign = p > 0 ? 1 : -1;
+    if (sign === streakSign) runningStreak += p;
+    else { streakSign = sign; runningStreak = p; }
+    if (runningStreak > bestStreakPnl) bestStreakPnl = runningStreak;
+    if (runningStreak < worstStreakPnl) worstStreakPnl = runningStreak;
+  });
+
+  // R-multiple distribution
+  const rBucketSize = 0.5;
+  const rBuckets = {};
+  rVals.forEach(r => {
+    const b = Math.floor(r / rBucketSize) * rBucketSize;
+    rBuckets[b] = (rBuckets[b] || 0) + 1;
+  });
+  const rDistribution = Object.entries(rBuckets).sort((a, b) => +a[0] - +b[0]).map(([start, count]) => ({
+    range: `${+start >= 0 ? '+' : ''}${start}R`,
+    count,
+    pos: +start >= 0,
+  }));
+
+  // Symbol breakdown
+  const bySymbol = {};
+  sorted.forEach(t => {
+    const sym = t.ticker || '—';
+    if (!bySymbol[sym]) bySymbol[sym] = { count: 0, wins: 0, sum: 0 };
+    bySymbol[sym].count++;
+    const p = parseFloat(t.pnl);
+    bySymbol[sym].sum += p;
+    if (p > 0) bySymbol[sym].wins++;
+  });
+  const symbolData = Object.entries(bySymbol).map(([ticker, d]) => ({
+    ticker, count: d.count, winRate: (d.wins / d.count) * 100, avgPnl: d.sum / d.count, totalPnl: d.sum,
+  })).sort((a, b) => b.totalPnl - a.totalPnl);
+
+  // Market condition breakdown
+  const byCondition = {};
+  sorted.forEach(t => {
+    if (!t.market_condition) return;
+    if (!byCondition[t.market_condition]) byCondition[t.market_condition] = { count: 0, wins: 0, sum: 0 };
+    byCondition[t.market_condition].count++;
+    const p = parseFloat(t.pnl);
+    byCondition[t.market_condition].sum += p;
+    if (p > 0) byCondition[t.market_condition].wins++;
+  });
+  const conditionLabels = { bull: 'Bull', bear: 'Bear', chop: 'Chop', mixed: 'Mixed' };
+  const conditionData = Object.entries(byCondition).map(([k, d]) => ({
+    condition: conditionLabels[k] || k, count: d.count, winRate: (d.wins / d.count) * 100, avgPnl: d.sum / d.count,
+  })).sort((a, b) => b.avgPnl - a.avgPnl);
+
   return {
     totalPnl, winRate, wins: wins.length, losses: losses.length, total: closed.length,
     avgWin, avgLoss, profitFactor, best, worst, avgR, maxDD, monthly,
     totalComm, curStreak, maxWinStreak, maxLossStreak, bestMonth, worstMonth,
     equity, dowData, distribution,
+    stdDev, sharpe, recoveryFactor, kelly, expectancy, avgHoldDays,
+    tradesPerWeek, longestGapDays, bestStreakPnl, worstStreakPnl,
+    rDistribution, symbolData, conditionData,
   };
 }
 
@@ -323,6 +412,89 @@ export default function Stats({ trades }) {
                 <Tooltip {...TIP} formatter={v => [`${v >= 0 ? '+' : ''}$${v.toFixed(2)}`, 'Monthly P&L']} />
                 <Bar dataKey="pnl" radius={[4, 4, 0, 0]}>
                   {s.monthly.map((e, i) => <Cell key={i} fill={e.pnl >= 0 ? GREEN : RED} fillOpacity={0.85} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </>
+      )}
+
+      {/* ── Row 6: Risk & Edge metrics ── */}
+      <SectionTitle>Risk &amp; Edge Metrics</SectionTitle>
+      <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(148px, 1fr))', gap: 10 }}>
+        <StatTile label="Expectancy"      value={fmt(s.expectancy)}   color={s.expectancy >= 0 ? GREEN : RED} sub="per trade" />
+        <StatTile label="Kelly %"         value={s.kelly != null ? `${s.kelly.toFixed(1)}%` : '—'} color={s.kelly >= 0 ? GREEN : RED} sub="optimal position size" />
+        <StatTile label="Recovery Factor" value={s.recoveryFactor === Infinity ? '∞' : s.recoveryFactor.toFixed(2)} color={s.recoveryFactor >= 1 ? GREEN : RED} sub="net P&L / max DD" />
+        <StatTile label="Sharpe (trade)"  value={s.sharpe.toFixed(2)} color={s.sharpe >= 0 ? GREEN : RED} sub="mean / std dev" />
+        <StatTile label="Std Deviation"   value={`$${s.stdDev.toFixed(2)}`} color={NAVY} sub="P&L volatility" />
+        <StatTile label="Avg Hold Time"   value={s.avgHoldDays != null ? `${s.avgHoldDays.toFixed(1)}d` : '—'} color={NAVY} />
+        <StatTile label="Trades / Week"   value={s.tradesPerWeek.toFixed(1)} color={NAVY} />
+        <StatTile label="Longest Gap"     value={`${s.longestGapDays}d`}  color={NAVY} sub="between trades" />
+        <StatTile label="Best Streak $"   value={fmt(s.bestStreakPnl)}    color={GREEN} />
+        <StatTile label="Worst Streak $"  value={fmt(s.worstStreakPnl)}   color={RED} />
+      </div>
+
+      {/* ── Row 7: R-Multiple distribution ── */}
+      {s.rDistribution.length > 0 && (
+        <>
+          <SectionTitle>R-Multiple Distribution</SectionTitle>
+          <div className="panel" style={{ padding: '16px 18px' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 12 }}>Number of trades per R range</div>
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={s.rDistribution} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                <XAxis dataKey="range" tick={{ fontSize: 10, fill: 'var(--text-faint)' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: 'var(--text-faint)' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                <Tooltip {...TIP} formatter={(v, _, p) => [v, `Trades in ${p.payload.range}`]} />
+                <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                  {s.rDistribution.map((d, i) => <Cell key={i} fill={d.pos ? GREEN : RED} fillOpacity={0.85} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </>
+      )}
+
+      {/* ── Row 8: Performance by Symbol ── */}
+      {s.symbolData.length > 0 && (
+        <>
+          <SectionTitle>Performance by Symbol</SectionTitle>
+          <div className="panel" style={{ padding: '4px 0', overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: 'var(--bg-card)' }}>
+                  {['Symbol', 'Trades', 'Win %', 'Avg P&L', 'Total P&L'].map((h, i) => (
+                    <th key={h} style={{ padding: '8px 14px', textAlign: i === 0 ? 'left' : 'center', fontSize: 10, fontWeight: 700, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {s.symbolData.map(d => (
+                  <tr key={d.ticker} style={{ borderTop: '1px solid var(--border)' }}>
+                    <td style={{ padding: '8px 14px', fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{d.ticker}</td>
+                    <td style={{ padding: '8px 14px', textAlign: 'center', fontSize: 12 }}>{d.count}</td>
+                    <td style={{ padding: '8px 14px', textAlign: 'center', fontSize: 12, fontWeight: 600, color: d.winRate >= 50 ? GREEN : RED }}>{d.winRate.toFixed(0)}%</td>
+                    <td style={{ padding: '8px 14px', textAlign: 'center', fontSize: 12, fontWeight: 600, color: d.avgPnl >= 0 ? GREEN : RED }} className="amount">{fmt(d.avgPnl)}</td>
+                    <td style={{ padding: '8px 14px', textAlign: 'center', fontSize: 12, fontWeight: 700, color: d.totalPnl >= 0 ? GREEN : RED }} className="amount">{fmt(d.totalPnl)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {/* ── Row 9: Market Condition ── */}
+      {s.conditionData.length > 0 && (
+        <>
+          <SectionTitle>Performance by Market Condition</SectionTitle>
+          <div className="panel" style={{ padding: '16px 18px' }}>
+            <ResponsiveContainer width="100%" height={160}>
+              <BarChart data={s.conditionData} margin={{ top: 0, right: 4, left: 0, bottom: 0 }}>
+                <XAxis dataKey="condition" tick={{ fontSize: 11, fill: 'var(--text-faint)' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: 'var(--text-faint)' }} axisLine={false} tickLine={false} tickFormatter={v => `$${v}`} width={50} />
+                <Tooltip {...TIP} formatter={(v, _, p) => [`${v >= 0 ? '+' : ''}$${v.toFixed(2)}`, `Avg P&L (${p.payload.count} trades, ${p.payload.winRate.toFixed(0)}% win)`]} />
+                <Bar dataKey="avgPnl" radius={[4, 4, 0, 0]} barSize={40}>
+                  {s.conditionData.map((d, i) => <Cell key={i} fill={d.avgPnl >= 0 ? GREEN : RED} fillOpacity={0.85} />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
