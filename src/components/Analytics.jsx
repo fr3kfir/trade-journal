@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { TrendingUp, TrendingDown, Target, Award, Calendar, BarChart2 } from 'lucide-react';
+import { TrendingUp, Target, Award, Calendar, BarChart2, Clock, ArrowUpDown, Layers, Star } from 'lucide-react';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -10,6 +10,16 @@ function netPnl(t) {
 function fmt$(v, sign = true) {
   const s = sign ? (v >= 0 ? '+' : '') : '';
   return `${s}$${Math.abs(v).toFixed(2)}`;
+}
+
+function holdingDays(t) {
+  if (!t.date || !t.exit_date) return null;
+  const days = Math.round((new Date(t.exit_date) - new Date(t.date)) / 86400000);
+  return days >= 0 ? days : null;
+}
+
+function avg(arr) {
+  return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
 }
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -158,14 +168,36 @@ function Stat({ label, value, sub, color }) {
   );
 }
 
-// ── Setup table row ───────────────────────────────────────────────────────────
+// ── Generic group breakdown table (Setup / Direction / Sector / Execution Score) ──
 
-function SetupRow({ s, maxPnl }) {
+function groupStats(closed, keyFn) {
+  const map = {};
+  for (const t of closed) {
+    const k = keyFn(t);
+    if (!map[k]) map[k] = [];
+    map[k].push(t);
+  }
+  return Object.entries(map).map(([key, ts]) => {
+    const pnls  = ts.map(netPnl);
+    const wins  = pnls.filter(p => p > 0).length;
+    const rVals = ts.filter(t => t.r_value != null).map(t => parseFloat(t.r_value)).filter(v => !isNaN(v));
+    return {
+      key,
+      count:    ts.length,
+      winRate:  (wins / ts.length * 100).toFixed(0),
+      avgPnl:   parseFloat((avg(pnls) || 0).toFixed(2)),
+      totalPnl: parseFloat(pnls.reduce((a, b) => a + b, 0).toFixed(2)),
+      avgR:     rVals.length ? parseFloat(avg(rVals).toFixed(2)) : null,
+    };
+  }).sort((a, b) => b.totalPnl - a.totalPnl);
+}
+
+function GroupRow({ s, maxPnl }) {
   const barW = Math.abs(s.totalPnl) / (maxPnl || 1) * 100;
   const color = s.totalPnl >= 0 ? 'var(--green)' : 'var(--red)';
   return (
     <tr style={{ borderBottom: '1px solid var(--border)' }}>
-      <td style={{ padding: '9px 10px', fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{s.setup || '—'}</td>
+      <td style={{ padding: '9px 10px', fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{s.key || '—'}</td>
       <td style={{ padding: '9px 10px', textAlign: 'center', fontSize: 12 }}>{s.count}</td>
       <td style={{ padding: '9px 10px', textAlign: 'center', fontSize: 12, color: parseFloat(s.winRate) >= 50 ? 'var(--green)' : 'var(--red)', fontWeight: 600 }}>
         {s.winRate}%
@@ -184,6 +216,81 @@ function SetupRow({ s, maxPnl }) {
       </td>
     </tr>
   );
+}
+
+function GroupTable({ icon, title, firstCol, data, emptyText }) {
+  const Icon = icon;
+  const maxPnl = Math.max(...data.map(s => Math.abs(s.totalPnl)), 0.01);
+  return (
+    <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+      <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', fontSize: 14, fontWeight: 700, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Icon size={15} /> {title}
+      </div>
+      {!data.length ? (
+        <div style={{ padding: '24px 16px', fontSize: 13, color: 'var(--text-faint)' }}>{emptyText}</div>
+      ) : (
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ background: 'var(--bg-card)' }}>
+              {[firstCol, 'עסקאות', 'Win%', 'ממוצע', 'Avg R', 'סה״כ P&L'].map(h => (
+                <th key={h} style={{ padding: '8px 10px', textAlign: h === firstCol ? 'left' : 'center', fontSize: 10, fontWeight: 700, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {data.map(s => <GroupRow key={s.key} s={s} maxPnl={maxPnl} />)}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+// ── Boolean impact box (rules followed / sector leading / RS strong) ───────────
+
+function BooleanImpact({ icon, title, yesLabel, noLabel, yes, no }) {
+  const Icon = icon;
+  const rows = [
+    { label: yesLabel, d: yes, color: 'var(--green)' },
+    { label: noLabel,  d: no,  color: 'var(--red)' },
+  ].filter(r => r.d.count > 0);
+  if (!rows.length) return null;
+  return (
+    <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Icon size={15} /> {title}
+      </div>
+      {rows.map(({ label, d, color }) => (
+        <div key={label} style={{ background: 'var(--bg-card)', borderRadius: 8, padding: '12px 14px' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color, marginBottom: 8 }}>{label}</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, fontSize: 11 }}>
+            <div style={{ color: 'var(--text-faint)' }}>עסקאות<br /><span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>{d.count}</span></div>
+            <div style={{ color: 'var(--text-faint)' }}>Win%<br /><span style={{ fontSize: 16, fontWeight: 700, color }}>{d.wr}%</span></div>
+            <div style={{ color: 'var(--text-faint)' }}>ממוצע<br /><span style={{ fontSize: 16, fontWeight: 700, color: d.avg >= 0 ? 'var(--green)' : 'var(--red)' }} className="amount">{d.avg != null ? fmt$(d.avg) : '—'}</span></div>
+          </div>
+        </div>
+      ))}
+      {rows.length === 2 && rows[0].d.avg != null && rows[1].d.avg != null && (
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', background: 'var(--bg-card)', borderRadius: 8, padding: '10px 12px', lineHeight: 1.6 }}>
+          {rows[0].d.avg >= rows[1].d.avg
+            ? `כש"${rows[0].label}" הרווחת ${fmt$(rows[0].d.avg - rows[1].d.avg)} יותר בממוצע לעסקה`
+            : `כש"${rows[1].label}" הרווחת ${fmt$(rows[1].d.avg - rows[0].d.avg)} יותר בממוצע לעסקה`
+          }
+        </div>
+      )}
+    </div>
+  );
+}
+
+function boolBreakdown(closed, keyFn) {
+  const avgOf = arr => arr.length ? parseFloat((avg(arr.map(netPnl)) || 0).toFixed(2)) : null;
+  const wrOf  = arr => arr.length ? (arr.filter(t => netPnl(t) > 0).length / arr.length * 100).toFixed(0) : null;
+  const yes = closed.filter(t => keyFn(t) === true);
+  const no  = closed.filter(t => keyFn(t) === false);
+  return {
+    yes: { count: yes.length, avg: avgOf(yes), wr: wrOf(yes) },
+    no:  { count: no.length,  avg: avgOf(no),  wr: wrOf(no) },
+  };
 }
 
 // ── Main Analytics component ──────────────────────────────────────────────────
@@ -240,29 +347,48 @@ export default function Analytics({ trades }) {
   }, [closed]);
 
   // Setup breakdown
-  const setupData = useMemo(() => {
-    const map = {};
-    for (const t of closed) {
-      const k = t.setup || '(ללא setup)';
-      if (!map[k]) map[k] = [];
-      map[k].push(t);
-    }
-    return Object.entries(map).map(([setup, ts]) => {
-      const pnls  = ts.map(netPnl);
-      const wins  = pnls.filter(p => p > 0).length;
-      const rVals = ts.filter(t => t.r_value != null).map(t => parseFloat(t.r_value)).filter(v => !isNaN(v));
-      return {
-        setup,
-        count:    ts.length,
-        winRate:  (wins / ts.length * 100).toFixed(0),
-        avgPnl:   parseFloat((pnls.reduce((a, b) => a + b, 0) / ts.length).toFixed(2)),
-        totalPnl: parseFloat(pnls.reduce((a, b) => a + b, 0).toFixed(2)),
-        avgR:     rVals.length ? parseFloat((rVals.reduce((a, b) => a + b, 0) / rVals.length).toFixed(2)) : null,
-      };
-    }).sort((a, b) => b.totalPnl - a.totalPnl);
-  }, [closed]);
+  const setupData = useMemo(() => groupStats(closed, t => t.setup || '(ללא setup)'), [closed]);
 
-  const maxSetupPnl = Math.max(...setupData.map(s => Math.abs(s.totalPnl)), 0.01);
+  // Direction breakdown (Long vs Short)
+  const directionData = useMemo(() => groupStats(closed, t => t.direction === 'S' ? 'Short' : 'Long'), [closed]);
+
+  // Sector breakdown
+  const sectorData = useMemo(() => groupStats(closed.filter(t => t.sector), t => t.sector), [closed]);
+
+  // Execution score breakdown (self-graded discipline, 1-5)
+  const execScoreData = useMemo(() => groupStats(closed.filter(t => t.execution_score), t => `${t.execution_score} ★`).sort((a, b) => b.key.localeCompare(a.key)), [closed]);
+
+  // Holding time — winners vs losers
+  const holdingData = useMemo(() => {
+    const withHold = closed.map(t => ({ t, days: holdingDays(t) })).filter(x => x.days != null);
+    const winners = withHold.filter(x => netPnl(x.t) > 0).map(x => x.days);
+    const losers  = withHold.filter(x => netPnl(x.t) <= 0).map(x => x.days);
+    const all     = withHold.map(x => x.days);
+
+    // Buckets for avg P&L by holding period
+    const bucketOf = d => d === 0 ? '0 (יומי)' : d <= 2 ? '1-2' : d <= 5 ? '3-5' : d <= 10 ? '6-10' : d <= 20 ? '11-20' : '20+';
+    const order = ['0 (יומי)', '1-2', '3-5', '6-10', '11-20', '20+'];
+    const buckets = {};
+    for (const x of withHold) {
+      const b = bucketOf(x.days);
+      if (!buckets[b]) buckets[b] = [];
+      buckets[b].push(netPnl(x.t));
+    }
+    const bucketData = order.filter(b => buckets[b]?.length).map(b => ({
+      label: b,
+      avgPnl: parseFloat((avg(buckets[b]) || 0).toFixed(2)),
+      count: buckets[b].length,
+    }));
+
+    return {
+      sampleCount: withHold.length,
+      avgWin:  avg(winners) != null ? parseFloat(avg(winners).toFixed(1)) : null,
+      avgLoss: avg(losers)  != null ? parseFloat(avg(losers).toFixed(1))  : null,
+      avgAll:  avg(all)     != null ? parseFloat(avg(all).toFixed(1))     : null,
+      maxHold: all.length ? Math.max(...all) : null,
+      bucketData,
+    };
+  }, [closed]);
 
   // Day of week
   const dowData = useMemo(() => {
@@ -295,18 +421,16 @@ export default function Analytics({ trades }) {
   }, [closed]);
 
   // Rules impact
-  const rulesData = useMemo(() => {
-    const followed    = closed.filter(t => t.followed_rules === true);
-    const notFollowed = closed.filter(t => t.followed_rules === false);
-    const avg = arr => arr.length ? parseFloat((arr.map(netPnl).reduce((a, b) => a + b, 0) / arr.length).toFixed(2)) : null;
-    return {
-      followed:    { count: followed.length,    avg: avg(followed),    wr: followed.length ? (followed.filter(t => netPnl(t) > 0).length / followed.length * 100).toFixed(0) : null },
-      notFollowed: { count: notFollowed.length, avg: avg(notFollowed), wr: notFollowed.length ? (notFollowed.filter(t => netPnl(t) > 0).length / notFollowed.length * 100).toFixed(0) : null },
-    };
-  }, [closed]);
+  const rulesData = useMemo(() => boolBreakdown(closed, t => t.followed_rules), [closed]);
+
+  // 3-way alignment checklist: sector leading + relative strength
+  const sectorLeadData = useMemo(() => boolBreakdown(closed, t => t.sector_leading), [closed]);
+  const rsStrongData   = useMemo(() => boolBreakdown(closed, t => t.rs_strong), [closed]);
 
   const TF_BTNS = ['1M', '3M', 'YTD', 'ALL'];
-  const hasRules = closed.some(t => t.followed_rules != null);
+  const hasRules      = closed.some(t => t.followed_rules != null);
+  const hasSectorLead  = closed.some(t => t.sector_leading != null);
+  const hasRsStrong    = closed.some(t => t.rs_strong != null);
 
   if (!closed.length) return (
     <div style={{ textAlign: 'center', padding: '80px 0', color: 'var(--text-faint)' }}>
@@ -360,64 +484,68 @@ export default function Analytics({ trades }) {
         <EquityCurve points={equityPoints} width={760} height={220} />
       </div>
 
-      {/* Two-column: Setup table + Rules */}
-      <div style={{ display: 'grid', gridTemplateColumns: hasRules ? '1fr 260px' : '1fr', gap: 16, alignItems: 'start' }}>
-
-        {/* Setup breakdown table */}
-        <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-          <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', fontSize: 14, fontWeight: 700, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Target size={15} /> ביצועים לפי Setup
+      {/* Holding time — winners vs losers */}
+      {holdingData.sampleCount > 0 && (
+        <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 20px' }}>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Clock size={15} /> זמן אחזקה (Holding Time)
           </div>
-          {setupData.length === 0 || (setupData.length === 1 && setupData[0].setup === '(ללא setup)') ? (
-            <div style={{ padding: '24px 16px', fontSize: 13, color: 'var(--text-faint)' }}>הוסף שם setup לעסקאות כדי לראות ניתוח כאן</div>
-          ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: 'var(--bg-card)' }}>
-                  {['Setup', 'עסקאות', 'Win%', 'ממוצע', 'Avg R', 'סה״כ P&L'].map(h => (
-                    <th key={h} style={{ padding: '8px 10px', textAlign: h === 'Setup' ? 'left' : 'center', fontSize: 10, fontWeight: 700, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {setupData.map(s => <SetupRow key={s.setup} s={s} maxPnl={maxSetupPnl} />)}
-              </tbody>
-            </table>
+          <div style={{ fontSize: 11, color: 'var(--text-faint)', marginBottom: 12 }}>
+            מבוסס על {holdingData.sampleCount} עסקאות עם תאריך יציאה מוזן
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10, marginBottom: holdingData.bucketData.length > 1 ? 16 : 0 }}>
+            <Stat label="ממוצע — מנצחות" value={holdingData.avgWin != null ? `${holdingData.avgWin} ימים` : '—'} color="var(--green)" />
+            <Stat label="ממוצע — מפסידות" value={holdingData.avgLoss != null ? `${holdingData.avgLoss} ימים` : '—'} color="var(--red)" />
+            <Stat label="ממוצע — כללי" value={holdingData.avgAll != null ? `${holdingData.avgAll} ימים` : '—'} color="var(--navy)" />
+            <Stat label="אחזקה מקסימלית" value={holdingData.maxHold != null ? `${holdingData.maxHold} ימים` : '—'} />
+          </div>
+          {holdingData.bucketData.length > 1 && (
+            <>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>ממוצע P&L לפי משך אחזקה</div>
+              <BarChart
+                data={holdingData.bucketData}
+                valueKey="avgPnl"
+                colorFn={v => v >= 0 ? '#16a34a' : '#dc2626'}
+                width={760} height={150}
+                fmt={v => `$${Math.abs(v).toFixed(0)}`}
+              />
+            </>
           )}
         </div>
+      )}
 
-        {/* Rules impact */}
-        {hasRules && (
-          <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Award size={15} /> עמידה בכללים
-            </div>
+      {/* Setup breakdown table */}
+      <GroupTable icon={Target} title="ביצועים לפי Setup" firstCol="Setup" data={setupData.length === 1 && setupData[0].key === '(ללא setup)' ? [] : setupData} emptyText="הוסף שם setup לעסקאות כדי לראות ניתוח כאן" />
 
-            {[
-              { label: '✓ עקבתי לכללים',    d: rulesData.followed,    color: 'var(--green)' },
-              { label: '✗ לא עקבתי לכללים', d: rulesData.notFollowed, color: 'var(--red)' },
-            ].map(({ label, d, color }) => d.count > 0 && (
-              <div key={label} style={{ background: 'var(--bg-card)', borderRadius: 8, padding: '12px 14px' }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color, marginBottom: 8 }}>{label}</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, fontSize: 11 }}>
-                  <div style={{ color: 'var(--text-faint)' }}>עסקאות<br /><span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>{d.count}</span></div>
-                  <div style={{ color: 'var(--text-faint)' }}>Win%<br /><span style={{ fontSize: 16, fontWeight: 700, color }}>{d.wr}%</span></div>
-                  <div style={{ color: 'var(--text-faint)' }}>ממוצע<br /><span style={{ fontSize: 16, fontWeight: 700, color: d.avg >= 0 ? 'var(--green)' : 'var(--red)' }} className="amount">{d.avg != null ? fmt$(d.avg) : '—'}</span></div>
-                </div>
-              </div>
-            ))}
-
-            {rulesData.followed.avg != null && rulesData.notFollowed.avg != null && (
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', background: 'var(--bg-card)', borderRadius: 8, padding: '10px 12px', lineHeight: 1.6 }}>
-                {rulesData.followed.avg > rulesData.notFollowed.avg
-                  ? `כשעקבת לכללים הרווחת ${fmt$(rulesData.followed.avg - rulesData.notFollowed.avg)} יותר בממוצע לעסקה`
-                  : `כשלא עקבת לכללים הרווחת ${fmt$(rulesData.notFollowed.avg - rulesData.followed.avg)} יותר — בדוק מחדש את הכללים`
-                }
-              </div>
-            )}
-          </div>
+      {/* Direction + Sector breakdown */}
+      <div style={{ display: 'grid', gridTemplateColumns: sectorData.length ? '1fr 1fr' : '1fr', gap: 16, alignItems: 'start' }}>
+        <GroupTable icon={ArrowUpDown} title="ביצועים לפי כיוון (Long / Short)" firstCol="כיוון" data={directionData} emptyText="אין עסקאות" />
+        {sectorData.length > 0 && (
+          <GroupTable icon={Layers} title="ביצועים לפי סקטור" firstCol="סקטור" data={sectorData} emptyText="הוסף סקטור לעסקאות כדי לראות ניתוח כאן" />
         )}
       </div>
+
+      {/* Execution score + quality checklist */}
+      {(execScoreData.length > 0 || hasSectorLead || hasRsStrong) && (
+        <div style={{ display: 'grid', gridTemplateColumns: execScoreData.length ? '1fr 1fr' : '1fr 1fr', gap: 16, alignItems: 'start' }}>
+          {execScoreData.length > 0 && (
+            <GroupTable icon={Star} title="ביצועים לפי ציון ביצוע (Execution Score)" firstCol="ציון" data={execScoreData} emptyText="אין נתונים" />
+          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {hasSectorLead && (
+              <BooleanImpact icon={Layers} title="הסקטור מוביל?" yesLabel="🏭 כן — הסקטור הוביל" noLabel="🏭 לא — הסקטור לא הוביל" yes={sectorLeadData.yes} no={sectorLeadData.no} />
+            )}
+            {hasRsStrong && (
+              <BooleanImpact icon={TrendingUp} title="RS חזק (מוביל את השוק)?" yesLabel="💪 כן — RS חזק" noLabel="💪 לא — RS חלש" yes={rsStrongData.yes} no={rsStrongData.no} />
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Rules impact */}
+      {hasRules && (
+        <BooleanImpact icon={Award} title="עמידה בכללים" yesLabel="✓ עקבתי לכללים" noLabel="✗ לא עקבתי לכללים" yes={rulesData.yes} no={rulesData.no} />
+      )}
 
       {/* Day of week + Monthly */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
@@ -482,7 +610,7 @@ export default function Analytics({ trades }) {
           {setupData.length > 1 && (
             <div>
               <span style={{ color: '#94a3b8' }}>הסטאפ הרווחי ביותר: </span>
-              <span style={{ color: '#4ade80', fontWeight: 700 }}>{setupData[0].setup}</span>
+              <span style={{ color: '#4ade80', fontWeight: 700 }}>{setupData[0].key}</span>
               <span style={{ color: '#94a3b8' }}> — win rate </span>
               <span style={{ color: '#4ade80', fontWeight: 700 }}>{setupData[0].winRate}%</span>
               <span style={{ color: '#94a3b8' }}>, avg </span>
@@ -492,8 +620,32 @@ export default function Analytics({ trades }) {
           {setupData.length > 1 && (
             <div>
               <span style={{ color: '#94a3b8' }}>הסטאפ הכי פחות יעיל: </span>
-              <span style={{ color: '#f87171', fontWeight: 700 }}>{setupData[setupData.length - 1].setup}</span>
+              <span style={{ color: '#f87171', fontWeight: 700 }}>{setupData[setupData.length - 1].key}</span>
               <span style={{ color: '#94a3b8' }}> — שקול לדלג עליו</span>
+            </div>
+          )}
+          {directionData.length > 1 && (() => {
+            const best = [...directionData].sort((a, b) => b.avgPnl - a.avgPnl)[0];
+            return (
+              <div>
+                <span style={{ color: '#94a3b8' }}>עדיף לך לסחור: </span>
+                <span style={{ color: '#4ade80', fontWeight: 700 }}>{best.key}</span>
+                <span style={{ color: '#94a3b8' }}> — win rate </span>
+                <span style={{ color: '#4ade80', fontWeight: 700 }}>{best.winRate}%</span>
+                <span style={{ color: '#94a3b8' }}>, avg </span>
+                <span style={{ color: '#4ade80', fontWeight: 700 }}>{fmt$(best.avgPnl)}</span>
+              </div>
+            );
+          })()}
+          {holdingData.avgWin != null && holdingData.avgLoss != null && (
+            <div>
+              <span style={{ color: '#94a3b8' }}>זמן אחזקה — מנצחות: </span>
+              <span style={{ color: '#4ade80', fontWeight: 700 }}>{holdingData.avgWin} ימים</span>
+              <span style={{ color: '#94a3b8' }}> | מפסידות: </span>
+              <span style={{ color: '#f87171', fontWeight: 700 }}>{holdingData.avgLoss} ימים</span>
+              <span style={{ color: '#94a3b8' }}>
+                {' — '}{holdingData.avgWin > holdingData.avgLoss ? 'אתה נותן לרווחים לרוץ ✓' : 'שקול לתת לעסקאות מנצחות יותר זמן להתפתח'}
+              </span>
             </div>
           )}
           {(() => {
@@ -516,12 +668,12 @@ export default function Analytics({ trades }) {
               <span style={{ color: '#94a3b8' }}> — {parseFloat(stats.expectancy) >= 0 ? 'יש לך edge חיובי' : 'ה-edge שלילי, בדוק את השיטה'}</span>
             </div>
           )}
-          {hasRules && rulesData.followed.avg != null && rulesData.notFollowed.avg != null && (
+          {hasRules && rulesData.yes.avg != null && rulesData.no.avg != null && (
             <div>
               <span style={{ color: '#94a3b8' }}>כשעקבת לכללים: </span>
-              <span style={{ color: '#4ade80', fontWeight: 700 }}>{fmt$(rulesData.followed.avg)}</span>
+              <span style={{ color: '#4ade80', fontWeight: 700 }}>{fmt$(rulesData.yes.avg)}</span>
               <span style={{ color: '#94a3b8' }}> ממוצע | כשלא: </span>
-              <span style={{ color: '#f87171', fontWeight: 700 }}>{fmt$(rulesData.notFollowed.avg || 0)}</span>
+              <span style={{ color: '#f87171', fontWeight: 700 }}>{fmt$(rulesData.no.avg || 0)}</span>
             </div>
           )}
         </div>

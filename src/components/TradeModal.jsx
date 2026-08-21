@@ -15,7 +15,7 @@ const MARKET_CONDITIONS = [
 ];
 
 const EMPTY = {
-  ticker: '', date: '', direction: 'L',
+  ticker: '', date: '', exit_date: '', direction: 'L',
   entry: '', exit: '', stop: '', quantity: '',
   pnl: '', r_value: '', commission: '', setup: '',
   market_condition: '',
@@ -152,8 +152,23 @@ export default function TradeModal({ trade, onSave, onClose }) {
               <Field label="Ticker" half>
                 <input className="input" value={form.ticker} onChange={e => set('ticker', e.target.value.toUpperCase())} placeholder="AAPL" required style={{ fontWeight: 700, fontSize: 15 }} />
               </Field>
-              <Field label="תאריך" half>
+              <Field label="תאריך כניסה" half>
                 <input className="input" type="date" value={form.date} onChange={e => set('date', e.target.value)} required />
+              </Field>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <Field label="תאריך יציאה (לחישוב זמן אחזקה)" half>
+                <input className="input" type="date" value={form.exit_date} onChange={e => set('exit_date', e.target.value)} min={form.date || undefined} />
+              </Field>
+              <Field label="ימי אחזקה" half>
+                <div className="input" style={{ display: 'flex', alignItems: 'center', color: 'var(--text-faint)', fontWeight: 600 }}>
+                  {(() => {
+                    if (!form.date || !form.exit_date) return '— השאר ריק אם נסגר באותו יום —';
+                    const days = Math.round((new Date(form.exit_date) - new Date(form.date)) / 86400000);
+                    return days >= 0 ? `${days} ${days === 1 ? 'יום' : 'ימים'}` : 'תאריך יציאה לפני הכניסה';
+                  })()}
+                </div>
               </Field>
             </div>
 
