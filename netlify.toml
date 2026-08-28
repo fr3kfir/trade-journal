@@ -18,6 +18,9 @@
 [functions.tv-screenshot]
   timeout = 26
 
+[functions.chat]
+  timeout = 26
+
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"

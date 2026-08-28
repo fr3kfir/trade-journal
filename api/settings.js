@@ -19,15 +19,16 @@ export default async function handler(req, res) {
         ibkrTokenSet: !!settings.ibkrToken,
         ibkrQueryId: settings.ibkrQueryId || '',
         ibkrConfirmQueryId: settings.ibkrConfirmQueryId || '',
+        anthropicKeySet: !!settings.anthropicKey,
       });
     } catch (err) {
-      return res.status(200).json({ ibkrTokenSet: false, ibkrQueryId: '', ibkrConfirmQueryId: '', error: err.message });
+      return res.status(200).json({ ibkrTokenSet: false, ibkrQueryId: '', ibkrConfirmQueryId: '', anthropicKeySet: false, error: err.message });
     }
   }
 
   if (req.method === 'POST') {
     try {
-      const { ibkrToken, ibkrQueryId, ibkrConfirmQueryId } = req.body || {};
+      const { ibkrToken, ibkrQueryId, ibkrConfirmQueryId, anthropicKey } = req.body || {};
       const existing = await redis.get('settings') || {};
       const updated = {
         ...existing,
@@ -35,6 +36,7 @@ export default async function handler(req, res) {
         ...(ibkrQueryId  ? { ibkrQueryId }  : {}),
         // Empty string is allowed — clears the confirm query to disable intraday sync
         ...(ibkrConfirmQueryId !== undefined ? { ibkrConfirmQueryId: ibkrConfirmQueryId.trim() } : {}),
+        ...(anthropicKey ? { anthropicKey: anthropicKey.trim() } : {}),
       };
       await redis.set('settings', updated);
       return res.status(200).json({ ok: true });
