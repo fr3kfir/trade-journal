@@ -6,6 +6,7 @@ import Sidebar from './components/Sidebar';
 import StatCard from './components/StatCard';
 import PnLChart from './components/PnLChart';
 import TradesTable from './components/TradesTable';
+import StockSummary from './components/StockSummary';
 import TradeModal from './components/TradeModal';
 import ImportModal from './components/ImportModal';
 import Stats from './components/Stats';
@@ -313,7 +314,12 @@ export default function App() {
             </div>
           )}
 
-          {section === 'trades'    && <div className="table-scroll"><TradesTable trades={trades} onUpdate={updateTrade} onDelete={deleteTrade} /></div>}
+          {section === 'trades'    && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+              <StockSummary trades={trades} />
+              <div className="table-scroll"><TradesTable trades={trades} onUpdate={updateTrade} onDelete={deleteTrade} /></div>
+            </div>
+          )}
           {section === 'portfolio' && <Portfolio trades={trades} />}
           {section === 'aichat'    && <AIChat trades={trades} onOpenSettings={() => setShowSettings(true)} />}
           {section === 'analytics' && <Analytics trades={trades} />}
