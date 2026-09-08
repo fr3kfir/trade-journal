@@ -38,6 +38,60 @@ function byPeriod(closed, keyFn) {
     .sort((a, b) => a.period.localeCompare(b.period));
 }
 
+// Groups trades by an arbitrary dimension (setup, sector, direction, ...) so
+// the AI can answer "which X performs best" from a precomputed table instead
+// of re-summing the raw trade list itself, which is where wrong numbers creep in.
+function byDimension(closed, keyFn, label) {
+  const map = new Map();
+  for (const t of closed) {
+    const key = keyFn(t) || null;
+    if (!key) continue;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(t);
+  }
+  return [...map.entries()]
+    .map(([key, list]) => ({ [label]: key, ...aggregate(list) }))
+    .sort((a, b) => b.netPnl - a.netPnl);
+}
+
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+function computeStreaks(closed) {
+  let cur = 0, curIsWin = null, longestWin = 0, longestLoss = 0;
+  for (const t of closed) {
+    const isWin = t.netPnl > 0;
+    cur = curIsWin === isWin ? cur + 1 : 1;
+    curIsWin = isWin;
+    if (isWin) longestWin = Math.max(longestWin, cur);
+    else longestLoss = Math.max(longestLoss, cur);
+  }
+  return {
+    currentStreakType: curIsWin == null ? null : (curIsWin ? 'win' : 'loss'),
+    currentStreakLength: curIsWin == null ? 0 : cur,
+    longestWinStreak: longestWin,
+    longestLossStreak: longestLoss,
+  };
+}
+
+function computeMaxDrawdown(closed) {
+  let equity = 0, peak = 0, maxDD = 0;
+  for (const t of closed) {
+    equity += t.netPnl;
+    peak = Math.max(peak, equity);
+    maxDD = Math.min(maxDD, equity - peak);
+  }
+  return round2(maxDD);
+}
+
+function computeRStats(closed) {
+  const withR = closed.filter(t => t.rValue != null);
+  if (!withR.length) return null;
+  return {
+    trades: withR.length,
+    avgR: round2(withR.reduce((a, t) => a + t.rValue, 0) / withR.length),
+  };
+}
+
 export function buildTradesContext(trades) {
   const closed = (trades || [])
     .filter(t => t.pnl != null && t.pnl !== '' && t.date)
@@ -73,6 +127,15 @@ export function buildTradesContext(trades) {
     totals: aggregate(closed),
     monthly: byPeriod(closed, d => d.slice(0, 7)), // YYYY-MM
     yearly: byPeriod(closed, d => d.slice(0, 4)),  // YYYY
+    // Precomputed breakdowns — use these instead of re-deriving from `trades`.
+    bySetup: byDimension(closed, t => t.setup, 'setup'),
+    bySector: byDimension(closed, t => t.sector, 'sector'),
+    byDirection: byDimension(closed, t => t.direction, 'direction'),
+    byMarketCondition: byDimension(closed, t => t.marketCondition, 'marketCondition'),
+    byWeekday: byDimension(closed, t => WEEKDAYS[new Date(t.date).getUTCDay()], 'weekday'),
+    streaks: computeStreaks(closed),
+    maxDrawdown: computeMaxDrawdown(closed),
+    rMultiple: computeRStats(closed),
     topWinners,
     topLosers,
     // Most recent trades in full detail — capped to keep the request small.
