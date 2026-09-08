@@ -358,6 +358,16 @@ export default function Analytics({ trades }) {
   // Execution score breakdown (self-graded discipline, 1-5)
   const execScoreData = useMemo(() => groupStats(closed.filter(t => t.execution_score), t => `${t.execution_score} ★`).sort((a, b) => b.key.localeCompare(a.key)), [closed]);
 
+  // Quarterly breakdown
+  const quarterlyData = useMemo(() => {
+    const data = groupStats(closed, t => `Q${Math.ceil((new Date(t.date).getMonth() + 1) / 3)} ${t.date.slice(0, 4)}`);
+    return data.sort((a, b) => {
+      const [qa, ya] = a.key.split(' ');
+      const [qb, yb] = b.key.split(' ');
+      return ya === yb ? qa.localeCompare(qb) : ya.localeCompare(yb);
+    });
+  }, [closed]);
+
   // Holding time — winners vs losers
   const holdingData = useMemo(() => {
     const withHold = closed.map(t => ({ t, days: holdingDays(t) })).filter(x => x.days != null);
@@ -516,6 +526,9 @@ export default function Analytics({ trades }) {
 
       {/* Setup breakdown table */}
       <GroupTable icon={Target} title="ביצועים לפי Setup" firstCol="Setup" data={setupData.length === 1 && setupData[0].key === '(ללא setup)' ? [] : setupData} emptyText="הוסף שם setup לעסקאות כדי לראות ניתוח כאן" />
+
+      {/* Quarterly breakdown table */}
+      <GroupTable icon={Calendar} title="ביצועים לפי רבעון" firstCol="רבעון" data={quarterlyData} emptyText="אין נתונים" />
 
       {/* Direction + Sector breakdown */}
       <div style={{ display: 'grid', gridTemplateColumns: sectorData.length ? '1fr 1fr' : '1fr', gap: 16, alignItems: 'start' }}>

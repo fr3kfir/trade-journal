@@ -126,6 +126,7 @@ export function buildTradesContext(trades) {
     currency: 'USD',
     totals: aggregate(closed),
     monthly: byPeriod(closed, d => d.slice(0, 7)), // YYYY-MM
+    quarterly: byPeriod(closed, d => `${d.slice(0, 4)}-Q${Math.ceil(parseInt(d.slice(5, 7), 10) / 3)}`), // YYYY-Qn
     yearly: byPeriod(closed, d => d.slice(0, 4)),  // YYYY
     // Precomputed breakdowns — use these instead of re-deriving from `trades`.
     bySetup: byDimension(closed, t => t.setup, 'setup'),
