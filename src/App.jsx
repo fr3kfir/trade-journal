@@ -5,6 +5,7 @@ import { useTrades } from './hooks/useTrades';
 import Sidebar from './components/Sidebar';
 import StatCard from './components/StatCard';
 import PnLChart from './components/PnLChart';
+import BenchmarkChart from './components/BenchmarkChart';
 import TradesTable from './components/TradesTable';
 import TradeModal from './components/TradeModal';
 import ImportModal from './components/ImportModal';
@@ -307,6 +308,7 @@ export default function App() {
                 <StatCard label="Closed"    value={s.count} color="var(--text)" sub="Total trades" />
               </div>
               <PnLChart trades={filteredTrades} externalRange={dashTimeframe === 'ALL' ? 'ALL' : dashTimeframe} />
+              <BenchmarkChart trades={filteredTrades} timeframe={dashTimeframe} />
               <div className="table-scroll">
                 <TradesTable trades={filteredTrades.slice(0, 50)} onUpdate={updateTrade} onDelete={deleteTrade} />
               </div>

@@ -1,22 +1,17 @@
 import { useMemo, useState, useEffect } from 'react';
 import {
-  ComposedChart, Area, Line,
+  ComposedChart, Area,
   XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import { format, subDays, subMonths, startOfYear, startOfWeek, parseISO } from 'date-fns';
 import { Settings } from 'lucide-react';
 
 const RANGES = [
-  { key: '1W',  label: '1W',  yahooRange: '5d',  yahooInterval: '1d'  },
-  { key: '1M',  label: '1M',  yahooRange: '1mo', yahooInterval: '1d'  },
-  { key: '3M',  label: '3M',  yahooRange: '3mo', yahooInterval: '1wk' },
-  { key: 'YTD', label: 'YTD', yahooRange: 'ytd', yahooInterval: '1mo' },
-  { key: 'ALL', label: 'All', yahooRange: '5y',  yahooInterval: '1mo' },
-];
-
-const INDICES = [
-  { symbol: '^GSPC', label: 'S&P 500', color: '#6366f1' },
-  { symbol: '^IXIC', label: 'Nasdaq',  color: '#f59e0b' },
+  { key: '1W', label: '1W' },
+  { key: '1M', label: '1M' },
+  { key: '3M', label: '3M' },
+  { key: 'YTD', label: 'YTD' },
+  { key: 'ALL', label: 'All' },
 ];
 
 function getBucket(dateStr, range) {
@@ -76,18 +71,7 @@ function buildTradeData(trades, range, accountSize) {
   });
 }
 
-function mergeIndices(tradeData, indicesData) {
-  return tradeData.map(point => {
-    const merged = { ...point };
-    for (const [sym, pts] of Object.entries(indicesData)) {
-      const match = [...pts].reverse().find(p => p.date <= point.dateKey);
-      merged[sym] = match?.pct ?? null;
-    }
-    return merged;
-  });
-}
-
-const CustomTooltip = ({ active, payload, mode, showIndices }) => {
+const CustomTooltip = ({ active, payload, mode }) => {
   if (!active || !payload?.length) return null;
   const d = payload[0]?.payload;
   if (!d) return null;
@@ -109,11 +93,6 @@ const CustomTooltip = ({ active, payload, mode, showIndices }) => {
       <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>
         Period: {fmtPeriod}{d.count > 1 ? ` (${d.count} trades)` : ''}
       </div>
-      {showIndices && INDICES.map(idx => d[idx.symbol] != null && (
-        <div key={idx.symbol} style={{ fontSize: 11, color: idx.color, marginTop: 2 }}>
-          {idx.label}: {d[idx.symbol] >= 0 ? '+' : ''}{d[idx.symbol].toFixed(2)}%
-        </div>
-      ))}
     </div>
   );
 };
@@ -139,28 +118,8 @@ export default function PnLChart({ trades, externalRange }) {
   const [accountSize,    setAccountSize]    = useState(() => parseFloat(localStorage.getItem('apex_account_size')) || 0);
   const [editingAccount, setEditingAccount] = useState(false);
   const [accountDraft,   setAccountDraft]   = useState('');
-  const [activeIndices,  setActiveIndices]  = useState({ '^GSPC': false, '^IXIC': false });
-  const [indicesData,    setIndicesData]    = useState({});
-  const [loadingIdx,     setLoadingIdx]     = useState(false);
 
-  const showIndices = Object.values(activeIndices).some(Boolean);
-
-  useEffect(() => {
-    if (!showIndices) return;
-    const ro = RANGES.find(r => r.key === range);
-    setLoadingIdx(true);
-    Promise.all(
-      INDICES.filter(i => activeIndices[i.symbol]).map(i =>
-        fetch(`/api/indices?symbol=${encodeURIComponent(i.symbol)}&range=${ro.yahooRange}&interval=${ro.yahooInterval}`)
-          .then(r => r.json())
-          .then(d => [i.symbol, d.points || []])
-          .catch(() => [i.symbol, []])
-      )
-    ).then(results => { setIndicesData(Object.fromEntries(results)); setLoadingIdx(false); });
-  }, [showIndices, range, activeIndices]);
-
-  const tradeData = useMemo(() => buildTradeData(trades, range, accountSize), [trades, range, accountSize]);
-  const data      = useMemo(() => mergeIndices(tradeData, indicesData), [tradeData, indicesData]);
+  const data = useMemo(() => buildTradeData(trades, range, accountSize), [trades, range, accountSize]);
 
   // Warn if R values missing
   const noAccount = mode === '%' && accountSize <= 0;
@@ -214,30 +173,6 @@ export default function PnLChart({ trades, externalRange }) {
         </div>
       </div>
 
-      {/* Index toggles */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 12, alignItems: 'center' }}>
-        <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>vs.</span>
-        {INDICES.map(idx => {
-          const on = activeIndices[idx.symbol];
-          return (
-            <button key={idx.symbol}
-              onClick={() => setActiveIndices(p => ({ ...p, [idx.symbol]: !p[idx.symbol] }))}
-              style={{
-                fontSize: 11, padding: '3px 9px', borderRadius: 6, border: '1px solid',
-                borderColor: on ? idx.color : 'var(--border)',
-                background: on ? `${idx.color}18` : 'transparent',
-                color: on ? idx.color : 'var(--text-faint)',
-                cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500, transition: 'all 0.15s',
-              }}>
-              {idx.label}{loadingIdx && on ? ' …' : ''}
-            </button>
-          );
-        })}
-        {showIndices && mode !== '%' && (
-          <span style={{ fontSize: 10, color: 'var(--text-faint)', fontStyle: 'italic' }}>indices as %</span>
-        )}
-      </div>
-
       {/* Warnings */}
       {noAccount && (
         <div style={{ fontSize: 12, color: '#f59e0b', background: 'rgba(245,158,11,0.1)', borderRadius: 6, padding: '6px 12px', marginBottom: 10 }}>
@@ -260,7 +195,7 @@ export default function PnLChart({ trades, externalRange }) {
             </defs>
             <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--text-faint)' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
             <YAxis tick={{ fontSize: 10, fill: 'var(--text-faint)' }} axisLine={false} tickLine={false} tickFormatter={tickFmt} width={60} />
-            <Tooltip content={<CustomTooltip mode={mode} showIndices={showIndices} />} />
+            <Tooltip content={<CustomTooltip mode={mode} />} />
             <ReferenceLine y={0} stroke="var(--border)" strokeDasharray="3 3" />
 
             {/* Portfolio — Area */}
@@ -274,13 +209,6 @@ export default function PnLChart({ trades, externalRange }) {
               activeDot={{ r: 4, fill: lineColor, strokeWidth: 0 }}
               connectNulls
             />
-
-            {/* Index lines */}
-            {INDICES.filter(i => activeIndices[i.symbol]).map(idx => (
-              <Line key={idx.symbol} type="monotone" dataKey={idx.symbol}
-                stroke={idx.color} strokeWidth={1.5} strokeDasharray="5 3"
-                dot={false} activeDot={{ r: 3, fill: idx.color }} connectNulls />
-            ))}
           </ComposedChart>
         </ResponsiveContainer>
       )}
