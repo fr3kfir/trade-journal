@@ -104,8 +104,24 @@ export default function BenchmarkChart({ trades, timeframe }) {
   const [accountSize,    setAccountSize]    = useState(() => parseFloat(localStorage.getItem('apex_account_size')) || 0);
   const [editingAccount, setEditingAccount] = useState(false);
   const [accountDraft,   setAccountDraft]   = useState('');
+  const [ibkrNav,        setIbkrNav]        = useState(null);
+
+  // Same source as the Portfolio page: the NAV from the last IBKR sync.
+  useEffect(() => {
+    fetch('/api/ibkr?step=portfolio')
+      .then(r => r.json())
+      .then(d => { if (d?.nav > 0) setIbkrNav(d.nav); })
+      .catch(() => {});
+  }, []);
 
   const start    = useMemo(() => startDateFor(timeframe, trades), [timeframe, trades]);
+  // IBKR NAV is today's equity, so the period's starting capital is NAV minus
+  // the P&L made since the start. A manually entered size is used as-is.
+  const periodPnl = useMemo(
+    () => trades.filter(t => t.pnl != null && t.date && t.date.slice(0, 10) >= start).reduce((a, t) => a + netPnl(t), 0),
+    [trades, start],
+  );
+  const baseCapital = ibkrNav ? ibkrNav - periodPnl : accountSize;
   const longSpan = differenceInDays(new Date(), parseISO(start)) > 400;
   const activeIdx = INDICES.filter(i => active[i.symbol]);
   const activeKey = activeIdx.map(i => i.symbol).join(',');
@@ -143,8 +159,8 @@ export default function BenchmarkChart({ trades, timeframe }) {
 
   const data = useMemo(() => {
     const shown = Object.fromEntries(Object.entries(indicesData).filter(([s]) => active[s]));
-    return buildSeries(trades, shown, start, accountSize);
-  }, [trades, indicesData, active, start, accountSize]);
+    return buildSeries(trades, shown, start, baseCapital);
+  }, [trades, indicesData, active, start, baseCapital]);
 
   const last     = data.at(-1) || {};
   const myFinal  = last.me;
@@ -164,7 +180,11 @@ export default function BenchmarkChart({ trades, timeframe }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>Performance vs. Indices</span>
-          {editingAccount ? (
+          {ibkrNav ? (
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', padding: '2px 6px' }}>
+              NAV ${Math.round(ibkrNav).toLocaleString()} · IBKR
+            </span>
+          ) : editingAccount ? (
             <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
               <input
                 className="input" autoFocus type="number" value={accountDraft}
@@ -219,7 +239,7 @@ export default function BenchmarkChart({ trades, timeframe }) {
         ))}
       </div>
 
-      {accountSize <= 0 && (
+      {baseCapital <= 0 && (
         <div style={{ fontSize: 12, color: '#f59e0b', background: 'rgba(245,158,11,0.1)', borderRadius: 6, padding: '6px 12px', marginBottom: 10 }}>
           ⚠ הכנס את גודל החשבון (למעלה) כדי לראות את התשואה שלך באחוזים מול המדדים
         </div>
@@ -243,7 +263,7 @@ export default function BenchmarkChart({ trades, timeframe }) {
               <Line key={idx.symbol} type="monotone" dataKey={idx.symbol} stroke={idx.color} strokeWidth={1.5}
                 strokeDasharray="5 3" dot={false} activeDot={{ r: 3, fill: idx.color }} connectNulls isAnimationActive={false} />
             ))}
-            {accountSize > 0 && (
+            {baseCapital > 0 && (
               <Line type="monotone" dataKey="me" name="Me" stroke={meColor} strokeWidth={2.5}
                 dot={false} activeDot={{ r: 4, fill: meColor, strokeWidth: 0 }} connectNulls isAnimationActive={false} />
             )}

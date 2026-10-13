@@ -118,11 +118,31 @@ export default function PnLChart({ trades, externalRange }) {
   const [accountSize,    setAccountSize]    = useState(() => parseFloat(localStorage.getItem('apex_account_size')) || 0);
   const [editingAccount, setEditingAccount] = useState(false);
   const [accountDraft,   setAccountDraft]   = useState('');
+  const [ibkrNav,        setIbkrNav]        = useState(null);
 
-  const data = useMemo(() => buildTradeData(trades, range, accountSize), [trades, range, accountSize]);
+  // Same source as the Portfolio page: the NAV from the last IBKR sync.
+  useEffect(() => {
+    fetch('/api/ibkr?step=portfolio')
+      .then(r => r.json())
+      .then(d => { if (d?.nav > 0) setIbkrNav(d.nav); })
+      .catch(() => {});
+  }, []);
+
+  // IBKR NAV is today's equity, so the range's starting capital is NAV minus
+  // the P&L made in the range. A manually entered size is used as-is.
+  const baseCapital = useMemo(() => {
+    if (!ibkrNav) return accountSize;
+    const cutoff = cutoffDate(range);
+    const rangePnl = trades
+      .filter(t => t.pnl != null && t.date && new Date(t.date) >= cutoff)
+      .reduce((a, t) => a + (parseFloat(t.pnl) || 0), 0);
+    return ibkrNav - rangePnl;
+  }, [ibkrNav, accountSize, trades, range]);
+
+  const data = useMemo(() => buildTradeData(trades, range, baseCapital), [trades, range, baseCapital]);
 
   // Warn if R values missing
-  const noAccount = mode === '%' && accountSize <= 0;
+  const noAccount = mode === '%' && baseCapital <= 0;
 
   const activeKey = mode === '%' ? 'cumPct' : 'cumPnl';
   const finalVal  = data.at(-1)?.[activeKey] ?? 0;
@@ -147,7 +167,11 @@ export default function PnLChart({ trades, externalRange }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>Cumulative P&amp;L</span>
-          {editingAccount ? (
+          {ibkrNav ? (
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', padding: '2px 6px' }}>
+              NAV ${Math.round(ibkrNav).toLocaleString()} · IBKR
+            </span>
+          ) : editingAccount ? (
             <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
               <input
                 className="input" autoFocus type="number" value={accountDraft}
