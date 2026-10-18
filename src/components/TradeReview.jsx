@@ -39,6 +39,16 @@ function sidePrice(v, estimated) {
   return v == null || isNaN(v) ? '—' : `${estimated ? '≈' : ''}$${parseFloat(v).toFixed(2)}`;
 }
 
+function Side({ label, price, date, estimated }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.3 }}>
+      <span style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</span>
+      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{sidePrice(price, estimated)}</span>
+      <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>{date || '—'}</span>
+    </div>
+  );
+}
+
 function TradeCard({ trade, timeline: tl = {}, onUpdate, onPlayback }) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -81,9 +91,6 @@ function TradeCard({ trade, timeline: tl = {}, onUpdate, onPlayback }) {
           </div>
 
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-            <span>Buy {tl.buyDate || '—'} @ {sidePrice(tl.buyPrice, tl.estimated && trade.direction !== 'S')}</span>
-            <span>→</span>
-            <span>Sell {tl.sellDate || '—'} @ {sidePrice(tl.sellPrice, tl.estimated && trade.direction === 'S')}</span>
             {trade.execution_score != null && (
               <span style={{ color: '#f59e0b' }}>{'★'.repeat(trade.execution_score)}{'☆'.repeat(5 - trade.execution_score)}</span>
             )}
@@ -92,6 +99,11 @@ function TradeCard({ trade, timeline: tl = {}, onUpdate, onPlayback }) {
                 {trade.followed_rules ? '✓ Rules' : '✗ Rules'}
               </span>
             )}
+          </div>
+
+          <div style={{ display: 'flex', gap: 20, marginTop: 8 }}>
+            <Side label="Bought" price={tl.buyPrice} date={tl.buyDate} estimated={tl.estimated && trade.direction !== 'S'} />
+            <Side label="Sold" price={tl.sellPrice} date={tl.sellDate} estimated={tl.estimated && trade.direction === 'S'} />
           </div>
 
           {/* Notes preview */}

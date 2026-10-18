@@ -120,16 +120,23 @@ export default function TradesTable({ trades, allTrades = trades, onUpdate, onDe
                 {fmt(t.pnl)}
               </span>
             </div>
+            {(() => {
+              const tl = timelines.get(t.id) || {};
+              return (
+                <div style={{ display: 'flex', gap: 20, margin: '6px 0', fontSize: 13, fontWeight: 600 }}>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 500, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Bought</div>
+                    <SideCell price={tl.buyPrice} date={tl.buyDate} estimated={tl.estimated && t.direction !== 'S'} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 500, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Sold</div>
+                    <SideCell price={tl.sellPrice} date={tl.sellDate} estimated={tl.estimated && t.direction === 'S'} />
+                  </div>
+                </div>
+              );
+            })()}
             <div className="trade-card-row2">
-              {(() => {
-                const tl = timelines.get(t.id) || {};
-                return <>
-                  <span>Buy {tl.buyDate || '—'} @ {money(tl.buyPrice) ? `${tl.estimated && t.direction !== 'S' ? '≈' : ''}${money(tl.buyPrice)}` : '—'}</span>
-                  <span>→</span>
-                  <span>Sell {tl.sellDate || '—'} @ {money(tl.sellPrice) ? `${tl.estimated && t.direction === 'S' ? '≈' : ''}${money(tl.sellPrice)}` : '—'}</span>
-                </>;
-              })()}
-              {t.quantity && <><span>·</span><span>{t.quantity} sh</span></>}
+              {t.quantity && <span>{t.quantity} sh</span>}
               {t.commission != null && <><span>·</span><span style={{ color: 'var(--red)' }}>-${parseFloat(t.commission).toFixed(2)} comm</span></>}
               {t.setup && <><span>·</span><span style={{ color: 'var(--text-muted)' }}>{t.setup}</span></>}
               {t.r_value != null && (
