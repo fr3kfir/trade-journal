@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, X, TrendingUp, TrendingDown, ArrowRight } from 'lucide-react';
-import { buildTradeTimelines } from '../utils/tradeLegs';
+import { buildTradeTimelines, formatDate } from '../utils/tradeLegs';
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -46,7 +46,7 @@ function sideValue(price, date, estimated) {
   return (
     <>
       <span style={{ display: 'block' }}>{estimated ? '≈' : ''}${parseFloat(price).toFixed(2)}</span>
-      <span style={{ display: 'block', fontSize: 11, fontWeight: 500, color: 'var(--text-faint)' }}>{date || '—'}</span>
+      <span style={{ display: 'block', fontSize: 11, fontWeight: 500, color: 'var(--text-faint)' }}>{formatDate(date)}</span>
     </>
   );
 }

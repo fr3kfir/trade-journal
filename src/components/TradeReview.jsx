@@ -3,7 +3,7 @@ import { StickyNote, ChevronDown, ChevronUp, ImageOff, Search, Play } from 'luci
 import TradeNotesModal from './TradeNotesModal';
 import TradePlayback from './TradePlayback';
 import { STAGES } from './ChartLibrary';
-import { buildTradeTimelines } from '../utils/tradeLegs';
+import { buildTradeTimelines, formatDate } from '../utils/tradeLegs';
 
 function normalizeImages(raw) {
   return (raw || []).map(img =>
@@ -44,7 +44,7 @@ function Side({ label, price, date, estimated }) {
     <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.3 }}>
       <span style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</span>
       <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{sidePrice(price, estimated)}</span>
-      <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>{date || '—'}</span>
+      <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>{formatDate(date)}</span>
     </div>
   );
 }

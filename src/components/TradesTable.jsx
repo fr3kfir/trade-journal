@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { ChevronDown, ChevronRight, StickyNote } from 'lucide-react';
 import TradeModal from './TradeModal';
 import TradeNotesModal from './TradeNotesModal';
-import { buildTradeTimelines } from '../utils/tradeLegs';
+import { buildTradeTimelines, formatDate } from '../utils/tradeLegs';
 
 function pnlColor(v) {
   if (v > 0) return 'var(--green)';
@@ -28,7 +28,7 @@ function SideCell({ price, date, estimated }) {
       <div title={estimated ? 'Estimated from realized P&L — opening fill not in imported history' : undefined}>
         {estimated ? '≈' : ''}{p}
       </div>
-      <div style={{ fontSize: 10, color: 'var(--text-faint)' }}>{date || '—'}</div>
+      <div style={{ fontSize: 10, color: 'var(--text-faint)' }}>{formatDate(date)}</div>
     </div>
   );
 }
@@ -46,7 +46,7 @@ function ExpandedLegs({ fills, direction }) {
         <tr key={`${f.id}-${i}`} style={{ background: 'var(--bg-card)' }}>
           <td></td>
           <td colSpan={13} style={{ fontSize: 12, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
-            {f.date} · {label} {f.qty} sh @ {money(f.price)}
+            {formatDate(f.date)} · {label} {f.qty} sh @ {money(f.price)}
           </td>
         </tr>
       ))}
