@@ -95,3 +95,21 @@ export function formatDate(iso) {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || '');
   return m ? `${m[3]}/${m[2]}/${m[1]}` : iso || '—';
 }
+
+function labelPrice(v, estimated) {
+  return v == null || isNaN(v) ? '—' : `${estimated ? '~' : ''}$${parseFloat(v).toFixed(2)}`;
+}
+
+// Text label to paste on a TradingView chart, opening side first
+export function chartLabel(trade, tl = {}) {
+  const long = trade.direction !== 'S';
+  const bought = `BOUGHT AT ${labelPrice(tl.buyPrice, tl.estimated && long)} (${formatDate(tl.buyDate)})`;
+  const sold   = `SOLD AT ${labelPrice(tl.sellPrice, tl.estimated && !long)} (${formatDate(tl.sellDate)})`;
+  const pnl = parseFloat(trade.pnl);
+  const lines = [
+    `${trade.ticker} · ${long ? 'LONG' : 'SHORT'}${trade.quantity ? ` · ${trade.quantity} sh` : ''}`,
+    ...(long ? [bought, sold] : [sold, bought]),
+  ];
+  if (!isNaN(pnl)) lines.push(`P&L ${pnl >= 0 ? '+' : '-'}$${Math.abs(pnl).toFixed(2)}`);
+  return lines.join('\n');
+}
