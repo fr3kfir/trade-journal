@@ -2,7 +2,8 @@ import { useState, useMemo } from 'react';
 import { ChevronDown, ChevronRight, StickyNote } from 'lucide-react';
 import TradeModal from './TradeModal';
 import TradeNotesModal from './TradeNotesModal';
-import { buildTradeTimelines, formatDate } from '../utils/tradeLegs';
+import { buildTradeTimelines, formatDate, chartLabel } from '../utils/tradeLegs';
+import CopyLabelButton from './CopyLabelButton';
 
 function pnlColor(v) {
   if (v > 0) return 'var(--green)';
@@ -163,6 +164,7 @@ export default function TradesTable({ trades, allTrades = trades, onUpdate, onDe
               )}
             </div>
             <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+              <CopyLabelButton text={chartLabel(t, timelines.get(t.id))} style={{ flex: 1, padding: '5px', fontSize: 12, justifyContent: 'center' }} />
               <button className="btn btn-ghost" style={{ flex: 1, padding: '5px', fontSize: 12, justifyContent: 'center' }} onClick={() => setEditing(t)}>Edit</button>
               <button className="btn btn-ghost" style={{ flex: 1, padding: '5px', fontSize: 12, justifyContent: 'center', color: (t.notes || t.chart_images?.length) ? 'var(--navy)' : undefined }} onClick={() => setNotes(t)}>
                 <StickyNote size={13} style={{ marginRight: 4 }} />Notes{t.chart_images?.length ? ` (${t.chart_images.length})` : ''}
@@ -246,7 +248,8 @@ export default function TradesTable({ trades, allTrades = trades, onUpdate, onDe
                       {t.followed_rules === false && <span style={{ color: 'var(--red)' }}>✗</span>}
                       {t.followed_rules == null && <span style={{ color: 'var(--text-faint)' }}>—</span>}
                     </td>
-                    <td style={{ textAlign: 'right' }} onClick={e => e.stopPropagation()}>
+                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
+                      <CopyLabelButton text={chartLabel(t, tl)} style={{ marginRight: 4 }} />
                       <button className="btn btn-ghost" style={{ padding: '3px 9px', fontSize: 11, marginRight: 4 }} onClick={() => setEditing(t)}>Edit</button>
                       <button className="btn btn-ghost" style={{ padding: '3px 9px', fontSize: 11, marginRight: 4, color: (t.notes || t.chart_images?.length) ? 'var(--navy)' : undefined }} onClick={() => setNotes(t)} title="Notes & Charts">
                         <StickyNote size={12} />

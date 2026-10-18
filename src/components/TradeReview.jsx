@@ -3,7 +3,8 @@ import { StickyNote, ChevronDown, ChevronUp, ImageOff, Search, Play } from 'luci
 import TradeNotesModal from './TradeNotesModal';
 import TradePlayback from './TradePlayback';
 import { STAGES } from './ChartLibrary';
-import { buildTradeTimelines, formatDate } from '../utils/tradeLegs';
+import { buildTradeTimelines, formatDate, chartLabel } from '../utils/tradeLegs';
+import CopyLabelButton from './CopyLabelButton';
 
 function normalizeImages(raw) {
   return (raw || []).map(img =>
@@ -120,6 +121,7 @@ function TradeCard({ trade, timeline: tl = {}, onUpdate, onPlayback }) {
 
         {/* Right: indicators + chevron */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <CopyLabelButton text={chartLabel(trade, tl)} />
           {hasImages && (
             <>
               <span style={{ fontSize: 11, color: 'var(--navy)', background: 'rgba(37,99,235,0.1)', padding: '2px 7px', borderRadius: 20, fontWeight: 600 }}>

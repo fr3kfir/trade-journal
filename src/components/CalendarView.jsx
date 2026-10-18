@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, X, TrendingUp, TrendingDown, ArrowRight } from 'lucide-react';
-import { buildTradeTimelines, formatDate } from '../utils/tradeLegs';
+import { buildTradeTimelines, formatDate, chartLabel } from '../utils/tradeLegs';
+import CopyLabelButton from './CopyLabelButton';
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -187,6 +188,7 @@ function DayModal({ dateStr, trades, timelines, allTradingDates, onClose, onNavi
                     {t.stop && <Stat label="Stop" value={`$${parseFloat(t.stop).toFixed(2)}`} />}
                     {t.quantity && <Stat label="Shares" value={t.quantity} />}
                     {t.commission && <Stat label="Commission" value={`$${parseFloat(t.commission).toFixed(2)}`} />}
+                    <CopyLabelButton text={chartLabel(t, timelines.get(t.id))} style={{ marginLeft: 'auto', alignSelf: 'center' }} />
                   </div>
                 )}
 
