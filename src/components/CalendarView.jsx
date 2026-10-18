@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, X, TrendingUp, TrendingDown, ArrowRight } from 'lucide-react';
+import { buildTradeTimelines } from '../utils/tradeLegs';
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -40,7 +41,12 @@ function Stat({ label, value }) {
   );
 }
 
-function DayModal({ dateStr, trades, allTradingDates, onClose, onNavigate }) {
+function sideValue(price, date, estimated) {
+  if (price == null || isNaN(price)) return '—';
+  return `${estimated ? '≈' : ''}$${parseFloat(price).toFixed(2)} · ${date || '—'}`;
+}
+
+function DayModal({ dateStr, trades, timelines, allTradingDates, onClose, onNavigate }) {
   const date = new Date(dateStr + 'T00:00:00');
   const label = date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   const totalPnl = trades.reduce((s, t) => s + (parseFloat(t.pnl) || 0), 0);
@@ -166,8 +172,13 @@ function DayModal({ dateStr, trades, allTradingDates, onClose, onNavigate }) {
                 {/* Entry / Exit / Stop / Shares */}
                 {(t.entry || t.exit || t.stop || t.quantity) && (
                   <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', paddingTop: 4, borderTop: '1px solid var(--border)' }}>
-                    {t.entry && <Stat label="Entry" value={`$${parseFloat(t.entry).toFixed(2)}`} />}
-                    {t.exit && <Stat label="Exit" value={`$${parseFloat(t.exit).toFixed(2)}`} />}
+                    {(() => {
+                      const tl = timelines.get(t.id) || {};
+                      return <>
+                        <Stat label="Bought" value={sideValue(tl.buyPrice, tl.buyDate, tl.estimated && t.direction !== 'S')} />
+                        <Stat label="Sold" value={sideValue(tl.sellPrice, tl.sellDate, tl.estimated && t.direction === 'S')} />
+                      </>;
+                    })()}
                     {t.stop && <Stat label="Stop" value={`$${parseFloat(t.stop).toFixed(2)}`} />}
                     {t.quantity && <Stat label="Shares" value={t.quantity} />}
                     {t.commission && <Stat label="Commission" value={`$${parseFloat(t.commission).toFixed(2)}`} />}
@@ -255,6 +266,7 @@ export default function CalendarView({ trades }) {
     });
     return { dayMap: map, tradesByDay: byDay, allTradingDates: Object.keys(map) };
   }, [trades]);
+  const timelines = useMemo(() => buildTradeTimelines(trades), [trades]);
 
   const { weeks, monthlyPnl, monthlyTrades, monthlyWins } = useMemo(() => {
     const firstDay = new Date(year, month, 1).getDay();
@@ -495,6 +507,7 @@ export default function CalendarView({ trades }) {
         <DayModal
           dateStr={selectedDate}
           trades={tradesByDay[selectedDate]}
+          timelines={timelines}
           allTradingDates={allTradingDates}
           onClose={() => setSelectedDate(null)}
           onNavigate={setSelectedDate}
