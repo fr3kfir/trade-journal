@@ -3,6 +3,7 @@ import { StickyNote, ChevronDown, ChevronUp, ImageOff, Search, Play } from 'luci
 import TradeNotesModal from './TradeNotesModal';
 import TradePlayback from './TradePlayback';
 import { STAGES } from './ChartLibrary';
+import { buildTradeTimelines } from '../utils/tradeLegs';
 
 function normalizeImages(raw) {
   return (raw || []).map(img =>
@@ -34,7 +35,11 @@ function fmt(v) {
   return `${v >= 0 ? '+' : ''}$${Math.abs(parseFloat(v)).toFixed(2)}`;
 }
 
-function TradeCard({ trade, onUpdate, onPlayback }) {
+function sidePrice(v, estimated) {
+  return v == null || isNaN(v) ? '—' : `${estimated ? '≈' : ''}$${parseFloat(v).toFixed(2)}`;
+}
+
+function TradeCard({ trade, timeline: tl = {}, onUpdate, onPlayback }) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const hasImages = trade.chart_images?.length > 0;
@@ -76,7 +81,9 @@ function TradeCard({ trade, onUpdate, onPlayback }) {
           </div>
 
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-            <span>{trade.date}</span>
+            <span>Buy {tl.buyDate || '—'} @ {sidePrice(tl.buyPrice, tl.estimated && trade.direction !== 'S')}</span>
+            <span>→</span>
+            <span>Sell {tl.sellDate || '—'} @ {sidePrice(tl.sellPrice, tl.estimated && trade.direction === 'S')}</span>
             {trade.execution_score != null && (
               <span style={{ color: '#f59e0b' }}>{'★'.repeat(trade.execution_score)}{'☆'.repeat(5 - trade.execution_score)}</span>
             )}
@@ -205,6 +212,7 @@ export default function TradeReview({ trades, onUpdate }) {
   const [filter, setFilter]     = useState('all'); // all | notes | charts | both
   const [sortBy, setSortBy]     = useState('date'); // date | ticker | pnl
   const [playbackTrade, setPlaybackTrade] = useState(null);
+  const timelines = useMemo(() => buildTradeTimelines(trades), [trades]);
 
   const reviewed = useMemo(() => {
     return trades
@@ -308,7 +316,7 @@ export default function TradeReview({ trades, onUpdate }) {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {reviewed.map(t => (
-            <TradeCard key={t.id} trade={t} onUpdate={onUpdate} onPlayback={setPlaybackTrade} />
+            <TradeCard key={t.id} trade={t} timeline={timelines.get(t.id)} onUpdate={onUpdate} onPlayback={setPlaybackTrade} />
           ))}
         </div>
       )}

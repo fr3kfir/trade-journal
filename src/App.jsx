@@ -308,7 +308,7 @@ export default function App() {
               </div>
               <PnLChart trades={filteredTrades} externalRange={dashTimeframe === 'ALL' ? 'ALL' : dashTimeframe} />
               <div className="table-scroll">
-                <TradesTable trades={filteredTrades.slice(0, 50)} onUpdate={updateTrade} onDelete={deleteTrade} />
+                <TradesTable trades={filteredTrades.slice(0, 50)} allTrades={trades} onUpdate={updateTrade} onDelete={deleteTrade} />
               </div>
             </div>
           )}
