@@ -100,15 +100,14 @@ function labelPrice(v, estimated) {
   return v == null || isNaN(v) ? '—' : `${estimated ? '~' : ''}$${parseFloat(v).toFixed(2)}`;
 }
 
-// Text label to paste on a TradingView chart, opening side first
+// Text label to paste on a TradingView chart
 export function chartLabel(trade, tl = {}) {
   const long = trade.direction !== 'S';
-  const bought = `BOUGHT AT ${labelPrice(tl.buyPrice, tl.estimated && long)} (${formatDate(tl.buyDate)})`;
-  const sold   = `SOLD AT ${labelPrice(tl.sellPrice, tl.estimated && !long)} (${formatDate(tl.sellDate)})`;
   const pnl = parseFloat(trade.pnl);
   const lines = [
-    `${trade.ticker} · ${long ? 'LONG' : 'SHORT'}${trade.quantity ? ` · ${trade.quantity} sh` : ''}`,
-    ...(long ? [bought, sold] : [sold, bought]),
+    long ? 'LONG' : 'SHORT',
+    `BOUGHT AT ${labelPrice(tl.buyPrice, tl.estimated && long)}`,
+    `SOLD AT ${labelPrice(tl.sellPrice, tl.estimated && !long)}`,
   ];
   if (!isNaN(pnl)) lines.push(`P&L ${pnl >= 0 ? '+' : '-'}$${Math.abs(pnl).toFixed(2)}`);
   return lines.join('\n');
