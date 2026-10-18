@@ -43,7 +43,12 @@ function Stat({ label, value }) {
 
 function sideValue(price, date, estimated) {
   if (price == null || isNaN(price)) return '—';
-  return `${estimated ? '≈' : ''}$${parseFloat(price).toFixed(2)} · ${date || '—'}`;
+  return (
+    <>
+      <span style={{ display: 'block' }}>{estimated ? '≈' : ''}${parseFloat(price).toFixed(2)}</span>
+      <span style={{ display: 'block', fontSize: 11, fontWeight: 500, color: 'var(--text-faint)' }}>{date || '—'}</span>
+    </>
+  );
 }
 
 function DayModal({ dateStr, trades, timelines, allTradingDates, onClose, onNavigate }) {
