@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { ChevronDown, ChevronRight, StickyNote } from 'lucide-react';
 import TradeModal from './TradeModal';
 import TradeNotesModal from './TradeNotesModal';
+import { buildTradeTimelines } from '../utils/tradeLegs';
 
 function pnlColor(v) {
   if (v > 0) return 'var(--green)';
@@ -14,57 +15,55 @@ function fmt(v, prefix = '$') {
   return `${v >= 0 ? '+' : ''}${prefix}${Math.abs(parseFloat(v)).toFixed(2)}`;
 }
 
-// For a closing trade, find related opening legs (same ticker, no P&L, earlier/same date)
-function getLegs(closeTrade, allTrades) {
-  return allTrades.filter(t =>
-    t.id !== closeTrade.id &&
-    t.ticker === closeTrade.ticker &&
-    t.pnl == null &&
-    new Date(t.date) <= new Date(closeTrade.date)
+function money(v) {
+  return v == null || isNaN(v) ? null : `$${parseFloat(v).toFixed(2)}`;
+}
+
+// Price with the execution date underneath
+function SideCell({ price, date, estimated }) {
+  const p = money(price);
+  if (!p) return <span style={{ color: 'var(--text-faint)' }}>—</span>;
+  return (
+    <div style={{ lineHeight: 1.25 }}>
+      <div title={estimated ? 'Estimated from realized P&L — opening fill not in imported history' : undefined}>
+        {estimated ? '≈' : ''}{p}
+      </div>
+      <div style={{ fontSize: 10, color: 'var(--text-faint)' }}>{date || '—'}</div>
+    </div>
   );
 }
 
-function ExpandedLegs({ legs }) {
-  if (!legs.length) return (
-    <tr>
-      <td colSpan={12} style={{ padding: '10px 32px', color: 'var(--text-faint)', fontSize: 12, background: 'var(--bg-card)' }}>
-        No opening legs found for this position
-      </td>
-    </tr>
-  );
+function ExpandedLegs({ fills, direction }) {
+  const label = direction === 'S' ? 'Sold' : 'Bought';
   return (
     <>
       <tr>
-        <td colSpan={12} style={{ background: 'var(--bg-card)', padding: '6px 32px 2px', fontSize: 10, fontWeight: 700, color: 'var(--text-faint)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-          Opening legs ({legs.length})
+        <td colSpan={14} style={{ background: 'var(--bg-card)', padding: '6px 32px 2px', fontSize: 10, fontWeight: 700, color: 'var(--text-faint)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+          Opening fills ({fills.length})
         </td>
       </tr>
-      {legs.map(leg => (
-        <tr key={leg.id} style={{ background: 'var(--bg-card)' }}>
-          <td style={{ paddingLeft: 32, fontSize: 11, color: 'var(--text-muted)' }}>{leg.date}</td>
-          <td style={{ fontSize: 12, fontWeight: 500 }}>{leg.ticker}</td>
-          <td>
-            <span className={`badge ${leg.direction === 'L' ? 'badge-green' : 'badge-red'}`} style={{ fontSize: 10, padding: '1px 7px' }}>
-              {leg.direction === 'L' ? 'Long' : 'Short'}
-            </span>
+      {fills.map((f, i) => (
+        <tr key={`${f.id}-${i}`} style={{ background: 'var(--bg-card)' }}>
+          <td></td>
+          <td colSpan={13} style={{ fontSize: 12, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+            {f.date} · {label} {f.qty} sh @ {money(f.price)}
           </td>
-          <td style={{ fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>{leg.entry ? `$${parseFloat(leg.entry).toFixed(2)}` : '—'}</td>
-          <td style={{ fontSize: 12, fontVariantNumeric: 'tabular-nums', color: 'var(--text-muted)' }}>{leg.quantity ?? '—'}</td>
-          <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>{leg.open_close || '—'}</td>
-          <td colSpan={4} style={{ fontSize: 11, color: 'var(--text-faint)' }}>Open position — no realized P&amp;L</td>
         </tr>
       ))}
     </>
   );
 }
 
-export default function TradesTable({ trades, onUpdate, onDelete }) {
+// allTrades: full history used to match closing fills to their opening fills
+// (the dashboard passes a sliced `trades` list)
+export default function TradesTable({ trades, allTrades = trades, onUpdate, onDelete }) {
   const [editing, setEditing] = useState(null);
   const [notes, setNotes] = useState(null);
   const [filter, setFilter] = useState('');
   const [dirFilter, setDirFilter] = useState('ALL');
   const [confirm, setConfirm] = useState(null);
   const [expanded, setExpanded] = useState(new Set());
+  const timelines = useMemo(() => buildTradeTimelines(allTrades), [allTrades]);
 
   // Only show trades that have realized P&L (closing trades)
   const closedTrades = trades.filter(t => t.pnl != null);
@@ -122,9 +121,14 @@ export default function TradesTable({ trades, onUpdate, onDelete }) {
               </span>
             </div>
             <div className="trade-card-row2">
-              <span>{t.date}</span>
-              {t.entry && <><span>·</span><span>Buy ${parseFloat(t.entry).toFixed(2)}</span></>}
-              {t.exit && <><span>→</span><span>Sell ${parseFloat(t.exit).toFixed(2)}</span></>}
+              {(() => {
+                const tl = timelines.get(t.id) || {};
+                return <>
+                  <span>Buy {tl.buyDate || '—'} @ {money(tl.buyPrice) ? `${tl.estimated && t.direction !== 'S' ? '≈' : ''}${money(tl.buyPrice)}` : '—'}</span>
+                  <span>→</span>
+                  <span>Sell {tl.sellDate || '—'} @ {money(tl.sellPrice) ? `${tl.estimated && t.direction === 'S' ? '≈' : ''}${money(tl.sellPrice)}` : '—'}</span>
+                </>;
+              })()}
               {t.quantity && <><span>·</span><span>{t.quantity} sh</span></>}
               {t.commission != null && <><span>·</span><span style={{ color: 'var(--red)' }}>-${parseFloat(t.commission).toFixed(2)} comm</span></>}
               {t.setup && <><span>·</span><span style={{ color: 'var(--text-muted)' }}>{t.setup}</span></>}
@@ -168,11 +172,10 @@ export default function TradesTable({ trades, onUpdate, onDelete }) {
           <thead>
             <tr>
               <th style={{ width: 28 }}></th>
-              <th>Date</th>
               <th>Ticker</th>
               <th>Dir</th>
-              <th>Buy</th>
-              <th>Sell</th>
+              <th>Bought</th>
+              <th>Sold</th>
               <th>Shares</th>
               <th>P&amp;L</th>
               <th>Comm.</th>
@@ -185,29 +188,33 @@ export default function TradesTable({ trades, onUpdate, onDelete }) {
           </thead>
           <tbody>
             {filtered.length === 0 && (
-              <tr><td colSpan={15} style={{ textAlign: 'center', color: 'var(--text-faint)', padding: 40 }}>No closed trades yet</td></tr>
+              <tr><td colSpan={14} style={{ textAlign: 'center', color: 'var(--text-faint)', padding: 40 }}>No closed trades yet</td></tr>
             )}
             {filtered.map(t => {
               const isOpen = expanded.has(t.id);
-              const legs = getLegs(t, trades);
+              const tl = timelines.get(t.id) || {};
+              const fills = tl.openFills || [];
               return (
                 <>
-                  <tr key={t.id} style={{ cursor: legs.length ? 'pointer' : 'default' }}
-                    onClick={() => legs.length && toggleExpand(t.id)}>
+                  <tr key={t.id} style={{ cursor: fills.length > 1 ? 'pointer' : 'default' }}
+                    onClick={() => fills.length > 1 && toggleExpand(t.id)}>
                     <td style={{ textAlign: 'center', color: 'var(--text-faint)' }}>
-                      {legs.length > 0
+                      {fills.length > 1
                         ? (isOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />)
                         : null}
                     </td>
-                    <td style={{ color: 'var(--text-muted)', fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>{t.date}</td>
                     <td style={{ fontWeight: 600, letterSpacing: '0.02em' }}>{t.ticker}</td>
                     <td>
                       <span className={`badge ${t.direction === 'L' ? 'badge-green' : 'badge-red'}`}>
                         {t.direction === 'L' ? 'Long' : 'Short'}
                       </span>
                     </td>
-                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>{t.entry ? `$${parseFloat(t.entry).toFixed(2)}` : '—'}</td>
-                    <td style={{ fontVariantNumeric: 'tabular-nums', color: t.exit ? 'var(--text)' : 'var(--text-faint)' }}>{t.exit ? `$${parseFloat(t.exit).toFixed(2)}` : '—'}</td>
+                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      <SideCell price={tl.buyPrice} date={tl.buyDate} estimated={tl.estimated && t.direction !== 'S'} />
+                    </td>
+                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      <SideCell price={tl.sellPrice} date={tl.sellDate} estimated={tl.estimated && t.direction === 'S'} />
+                    </td>
                     <td style={{ fontVariantNumeric: 'tabular-nums' }}>{t.quantity ?? '—'}</td>
                     <td style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: pnlColor(t.pnl) }}>
                       <span className="amount">{fmt(t.pnl)}</span>
@@ -241,7 +248,7 @@ export default function TradesTable({ trades, onUpdate, onDelete }) {
                       <button className="btn btn-danger" style={{ padding: '3px 9px', fontSize: 11 }} onClick={() => setConfirm(t.id)}>Del</button>
                     </td>
                   </tr>
-                  {isOpen && <ExpandedLegs legs={legs} />}
+                  {isOpen && <ExpandedLegs fills={fills} direction={t.direction} />}
                 </>
               );
             })}
