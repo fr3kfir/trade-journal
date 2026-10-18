@@ -89,3 +89,9 @@ export function buildTradeTimelines(trades) {
 
   return result;
 }
+
+// 'YYYY-MM-DD' -> 'DD/MM/YYYY' (Israeli day-first format)
+export function formatDate(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || '');
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso || '—';
+}
